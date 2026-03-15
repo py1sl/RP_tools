@@ -12,12 +12,12 @@ data-handling and common utility functions provided by the `utilities` package.
 
 Each tool below will occupy its own folder at the root of the repository:
 
-| Folder (planned) | Description |
-|---|---|
-| `gaussian_plume/` | Atmospheric dispersion and air-dose modelling |
-| `skin_dose/` | Dose to skin from beta and photon sources |
-| `ingestion_dose/` | Internal dose via the ingestion pathway |
-| `biokinetic/` | Systemic distribution of radionuclides (future) |
+| Folder | Description | Status |
+|---|---|---|
+| `gaussian_plume/` | Atmospheric dispersion and air-dose modelling (NRPB-R91) | Implemented |
+| `skin_dose/` | Dose to skin from beta and photon sources | Planned |
+| `ingestion_dose/` | Internal dose via the ingestion pathway | Planned |
+| `biokinetic/` | Systemic distribution of radionuclides | Planned |
 
 Radioactive decay calculations are provided as a shared utility in
 `utilities/radioactive_decay.py` and consumed by multiple tools.
@@ -29,7 +29,7 @@ RP_tools/
 ├── docs/             # Project documentation (this directory)
 ├── data/             # Shared reference data (nuclides, dose coefficients, …)
 ├── utilities/        # Common data-handling classes and shared calculation functions
-├── gaussian_plume/   # (planned) Gaussian plume dispersion tool
+├── gaussian_plume/   # Gaussian plume dispersion tool (NRPB-R91)
 ├── skin_dose/        # (planned) Skin dose tool
 ├── ingestion_dose/   # (planned) Ingestion dose tool
 └── tests/            # Pytest test suite covering utilities and all tools

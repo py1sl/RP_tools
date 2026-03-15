@@ -36,8 +36,8 @@ jobs:
         run: |
           # Stop the build if there are any flake8 errors.
           # Max line length is configured in .flake8 (127 characters).
-          flake8 utilities/ tests/
+          flake8 utilities/ gaussian_plume/ tests/
 
       - name: Run tests with coverage
         run: |
-          pytest tests/ --cov=utilities --cov-report=term-missing -v
+          pytest tests/ --cov=utilities --cov=gaussian_plume --cov-report=term-missing -v

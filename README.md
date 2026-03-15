@@ -14,7 +14,7 @@ RP_tools/
 ├── docs/             # Project-level documentation
 ├── data/             # Shared reference data (nuclides, dose coefficients, …)
 ├── utilities/        # Common data-handling classes and shared functions
-├── gaussian_plume/   # (planned) Gaussian plume dispersion and air-dose model
+├── gaussian_plume/   # Gaussian plume dispersion model (NRPB-R91)
 ├── skin_dose/        # (planned) Skin dose model
 ├── ingestion_dose/   # (planned) Ingestion dose model
 └── tests/            # Pytest test suite covering utilities and all tools
