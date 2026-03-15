@@ -1,6 +1,8 @@
 """RP_tools utilities package.
 
-Core calculation modules and data-handling classes for RP_tools.
+Shared data-handling classes and common calculation functions used across all
+RP_tools tool packages. Individual tools (e.g. Gaussian plume model, skin dose
+model) each live in their own top-level folder and import from this package.
 """
 
 from utilities.nuclide import Nuclide, load_nuclides

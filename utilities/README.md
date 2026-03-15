@@ -1,7 +1,12 @@
 # Utilities
 
-This directory contains the core calculation modules and data-handling classes
-for RP_tools.
+This directory contains **shared** data-handling classes and common calculation
+functions used across all RP_tools tool packages.
+
+Individual tools (e.g. Gaussian plume model, skin dose model) each live in
+their own top-level folder and import from this package. New tool-specific
+logic should go in the relevant tool folder, while genuinely reusable
+functions belong here.
 
 ## Modules
 
@@ -9,7 +14,7 @@ for RP_tools.
 
 Provides the `Nuclide` data class and the `load_nuclides()` helper that reads
 `data/nuclides.json` and returns a dictionary of `Nuclide` objects keyed by
-nuclide name.
+nuclide name.  Used by any tool that needs radionuclide properties.
 
 **Quick example**
 
@@ -24,10 +29,12 @@ print(co60.gamma_lines)         # [{'energy_MeV': 1.1732, ...}, ...]
 
 ### `radioactive_decay.py`
 
-Pure-function module for radioactive decay calculations.
+Pure-function module for radioactive decay calculations.  These functions are
+used by multiple tools (e.g. inventory calculations in a plume model, source
+term decay for skin dose).
 
 | Function | Description |
-|----------|-------------|
+|---|---|
 | `activity_at_time(A0, half_life, t)` | Activity after time *t* |
 | `decays_in_period(A0, half_life, t_start, duration)` | Total decays in a time window |
 | `time_to_activity(A0, A_target, half_life)` | Time to reach a target activity |
@@ -52,8 +59,9 @@ A = activity_at_time(3.7e10, T_HALF, 3.15576e7)
 N = decays_in_period(3.7e10, T_HALF, t_start=0, duration=3600)
 ```
 
-## Adding New Modules
+## Adding New Shared Modules
 
-Place new utility modules directly in this directory and import them from the
-package-level `__init__.py` if appropriate. Each module should be accompanied
-by tests in `tests/`.
+Place new shared utility modules directly in this directory and export them
+from the package-level `__init__.py`.  Each module should be accompanied by
+tests in `tests/`.  If a function is only used by one specific tool, put it
+in that tool's own folder instead.

@@ -1,5 +1,9 @@
 """Nuclide data class and JSON loader for RP_tools.
 
+This module is part of the ``utilities`` package, which provides shared
+data-handling classes and common functions used across all RP_tools tool
+packages (Gaussian plume model, skin dose, ingestion dose, etc.).
+
 This module provides:
 - :class:`Nuclide` – an immutable data class representing a single nuclide.
 - :func:`load_nuclides` – reads ``data/nuclides.json`` and returns a dictionary

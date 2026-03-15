@@ -1,5 +1,9 @@
 """Radioactive decay calculation functions for RP_tools.
 
+This module is part of the ``utilities`` package, which provides shared
+data-handling classes and common functions used across all RP_tools tool
+packages (Gaussian plume model, skin dose, ingestion dose, etc.).
+
 All functions operate on scalar values. Times and half-lives must be provided
 in **consistent units** (seconds are recommended). Activities are in Bq
 (decays per second) when seconds are used, or in whatever activity unit is
