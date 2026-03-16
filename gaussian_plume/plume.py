@@ -37,8 +37,17 @@ Reference:
 from __future__ import annotations
 
 import math
+from typing import Sequence
+
+import numpy as np
 
 from gaussian_plume.dispersion import STABILITY_CATEGORIES, sigma_y, sigma_z
+
+
+def _bin_centres(edges: list[float]) -> np.ndarray:
+    """Return the midpoints between consecutive bin edges."""
+    arr = np.asarray(edges, dtype=float)
+    return 0.5 * (arr[:-1] + arr[1:])
 
 
 class GaussianPlume:
@@ -175,6 +184,244 @@ class GaussianPlume:
             ValueError: If *x* ≤ 0.
         """
         return self.air_concentration(x, 0.0, 0.0)
+
+    def concentration_on_grid(
+        self,
+        x_edges: Sequence[float],
+        y_edges: Sequence[float],
+        z_edges: Sequence[float] | None = None,
+    ) -> dict[str, np.ndarray]:
+        """Return air concentration (Bq/m³) on an xy or xyz grid.
+
+        The grid is defined by bin edges in metres.  Concentrations are
+        evaluated at the bin-centre midpoints.  If *z_edges* is omitted the
+        grid is treated as a horizontal (xy) slice at ground level (z = 0).
+
+        Only positive downwind bin centres (x > 0) are evaluated; any bin
+        whose centre falls at x ≤ 0 is set to ``NaN``.
+
+        Args:
+            x_edges: Monotonically increasing sequence of downwind bin-edge
+                positions (m).  Must have at least two values.
+            y_edges: Monotonically increasing sequence of crosswind bin-edge
+                positions (m).  Must have at least two values.
+            z_edges: Optional monotonically increasing sequence of vertical
+                bin-edge heights (m).  If provided, all values must be ≥ 0.
+                When omitted a ground-level (z = 0) xy slice is returned.
+
+        Returns:
+            Dictionary mapping each nuclide name to a NumPy array of air
+            concentrations in Bq/m³.  The array shape is ``(nx, ny)`` for an
+            xy grid or ``(nx, ny, nz)`` for an xyz grid, where *nx*, *ny*,
+            and *nz* are the number of bins in each direction.
+
+        Raises:
+            ValueError: If any edge sequence has fewer than two elements, or
+                if any z edge value is negative.
+        """
+        x_edges = list(x_edges)
+        y_edges = list(y_edges)
+
+        if len(x_edges) < 2:
+            raise ValueError("x_edges must have at least two values.")
+        if len(y_edges) < 2:
+            raise ValueError("y_edges must have at least two values.")
+
+        x_centres = _bin_centres(x_edges)
+        y_centres = _bin_centres(y_edges)
+
+        if z_edges is None:
+            # xy slice at ground level
+            z_centres = np.array([0.0])
+            squeeze_z = True
+        else:
+            z_edges = list(z_edges)
+            if len(z_edges) < 2:
+                raise ValueError("z_edges must have at least two values.")
+            if any(z < 0 for z in z_edges):
+                raise ValueError("All z_edges values must be non-negative.")
+            z_centres = _bin_centres(z_edges)
+            squeeze_z = False
+
+        nx = len(x_centres)
+        ny = len(y_centres)
+        nz = len(z_centres)
+
+        # Initialise result arrays to NaN (x ≤ 0 bins will remain NaN)
+        result: dict[str, np.ndarray] = {
+            name: np.full((nx, ny, nz), np.nan) for name in self.release
+        }
+
+        for ix, x in enumerate(x_centres):
+            if x <= 0:
+                continue
+            sy = sigma_y(x, self.stability_category)
+            sz = sigma_z(x, self.stability_category)
+            H = self.release_height
+            u = self.wind_speed
+            two_sy_sq = 2.0 * sy ** 2
+            two_sz_sq = 2.0 * sz ** 2
+            # Vectorise over y and z
+            y_arr = np.asarray(y_centres)  # shape (ny,)
+            z_arr = np.asarray(z_centres)  # shape (nz,)
+            crosswind = np.exp(-np.square(y_arr) / two_sy_sq)              # (ny,)
+            vertical = (
+                np.exp(-np.square(z_arr - H) / two_sz_sq)
+                + np.exp(-np.square(z_arr + H) / two_sz_sq)
+            )                                                               # (nz,)
+            factor = (
+                crosswind[:, np.newaxis] * vertical[np.newaxis, :]
+                / (2.0 * math.pi * u * sy * sz)
+            )                                                               # (ny, nz)
+            for name, Q in self.release.items():
+                result[name][ix] = Q * factor
+
+        if squeeze_z:
+            return {name: arr[:, :, 0] for name, arr in result.items()}
+        return result
+
+    # ------------------------------------------------------------------
+    # Plotting methods
+    # ------------------------------------------------------------------
+
+    def plot_xy_slice(
+        self,
+        x_edges: Sequence[float],
+        y_edges: Sequence[float],
+        nuclide: str | None = None,
+        ax=None,
+        log_scale: bool = True,
+        **kwargs,
+    ):
+        """Plot a ground-level xy concentration slice using matplotlib.
+
+        Produces a filled colour map (``pcolormesh``) of air concentration
+        (Bq/m³) in the horizontal plane at z = 0 for a single nuclide.
+
+        Args:
+            x_edges: Downwind bin-edge positions (m).  At least two values.
+            y_edges: Crosswind bin-edge positions (m).  At least two values.
+            nuclide: Nuclide to plot.  If *None* and only one nuclide is in the
+                release, that nuclide is used automatically; otherwise a
+                ``ValueError`` is raised.
+            ax: Existing :class:`matplotlib.axes.Axes` to draw on.  A new
+                figure and axes are created if not provided.
+            log_scale: If *True* (default) the colour scale is logarithmic.
+            **kwargs: Additional keyword arguments forwarded to
+                ``ax.pcolormesh``.
+
+        Returns:
+            The :class:`matplotlib.axes.Axes` used for the plot.
+
+        Raises:
+            ValueError: If *nuclide* is not specified and more than one nuclide
+                is present in the release.
+        """
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LogNorm
+
+        nuclide = self._resolve_nuclide(nuclide)
+        grid = self.concentration_on_grid(x_edges, y_edges)
+        data = grid[nuclide]  # shape (nx, ny)
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        x_edges_arr = np.asarray(x_edges)
+        y_edges_arr = np.asarray(y_edges)
+
+        plot_kwargs: dict = dict(kwargs)
+        if log_scale:
+            # Replace any non-positive values with NaN for log scale
+            data = np.where(data > 0, data, np.nan)
+            if "norm" not in plot_kwargs:
+                finite = data[np.isfinite(data)]
+                if finite.size > 0:
+                    plot_kwargs["norm"] = LogNorm(vmin=finite.min(), vmax=finite.max())
+
+        # pcolormesh expects (ny, nx) — transpose data accordingly
+        mesh = ax.pcolormesh(x_edges_arr, y_edges_arr, data.T, **plot_kwargs)
+        plt.colorbar(mesh, ax=ax, label=f"{nuclide} concentration (Bq/m³)")
+        ax.set_xlabel("Downwind distance x (m)")
+        ax.set_ylabel("Crosswind distance y (m)")
+        ax.set_title(f"{nuclide} ground-level concentration — stability {self.stability_category!r}")
+        return ax
+
+    def plot_centreline(
+        self,
+        x_edges: Sequence[float],
+        nuclide: str | None = None,
+        ax=None,
+        **kwargs,
+    ):
+        """Plot ground-level centreline concentration vs downwind distance.
+
+        Produces a line plot of air concentration (Bq/m³) along the plume
+        centreline (y = 0, z = 0) for a single nuclide.
+
+        Args:
+            x_edges: Downwind bin-edge positions (m).  At least two values.
+                Bin centres are used as the x-axis values.
+            nuclide: Nuclide to plot.  If *None* and only one nuclide is in the
+                release, that nuclide is used automatically; otherwise a
+                ``ValueError`` is raised.
+            ax: Existing :class:`matplotlib.axes.Axes` to draw on.  A new
+                figure and axes are created if not provided.
+            **kwargs: Additional keyword arguments forwarded to ``ax.plot``.
+
+        Returns:
+            The :class:`matplotlib.axes.Axes` used for the plot.
+
+        Raises:
+            ValueError: If *nuclide* is not specified and more than one nuclide
+                is present in the release.
+        """
+        import matplotlib.pyplot as plt
+
+        nuclide = self._resolve_nuclide(nuclide)
+        x_centres = _bin_centres(list(x_edges))
+        concentrations = []
+        for x in x_centres:
+            if x > 0:
+                concentrations.append(self.centreline_concentration(x)[nuclide])
+            else:
+                concentrations.append(float("nan"))
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ax.plot(x_centres, concentrations, **kwargs)
+        ax.set_xlabel("Downwind distance x (m)")
+        ax.set_ylabel(f"{nuclide} concentration (Bq/m³)")
+        ax.set_title(
+            f"{nuclide} centreline ground-level concentration — stability {self.stability_category!r}"
+        )
+        return ax
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_nuclide(self, nuclide: str | None) -> str:
+        """Return the nuclide name to use, inferring it when only one exists.
+
+        Raises:
+            ValueError: If *nuclide* is None and more than one nuclide is in
+                the release, or if the named nuclide is not in the release.
+        """
+        if nuclide is None:
+            if len(self.release) == 1:
+                return next(iter(self.release))
+            raise ValueError(
+                "nuclide must be specified when the release contains more than one nuclide. "
+                f"Available: {', '.join(self.release)}"
+            )
+        if nuclide not in self.release:
+            raise ValueError(
+                f"Nuclide {nuclide!r} not found in release. "
+                f"Available: {', '.join(self.release)}"
+            )
+        return nuclide
 
     # ------------------------------------------------------------------
     # Dunder helpers

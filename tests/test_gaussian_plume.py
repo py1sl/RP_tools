@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import math
 
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 
 from gaussian_plume.dispersion import (
@@ -24,6 +27,15 @@ from gaussian_plume.dispersion import (
     sigma_z,
 )
 from gaussian_plume.plume import GaussianPlume
+
+matplotlib.use("Agg")
+
+
+@pytest.fixture(autouse=True)
+def close_matplotlib_figures():
+    """Close all matplotlib figures after each test to avoid resource warnings."""
+    yield
+    plt.close("all")
 
 
 # ---------------------------------------------------------------------------
@@ -380,3 +392,195 @@ class TestElevatedRelease:
         chi_at_H = plume.air_concentration(1.0, 0.0, H)["Cs137"]
         chi_at_0 = plume.air_concentration(1.0, 0.0, 0.0)["Cs137"]
         assert chi_at_H > chi_at_0
+
+
+# ---------------------------------------------------------------------------
+# GaussianPlume – concentration_on_grid()
+# ---------------------------------------------------------------------------
+
+
+class TestConcentrationOnGrid:
+    """Tests for concentration_on_grid(x_edges, y_edges, z_edges=None)."""
+
+    def _plume(self, H=0.0, cat="D"):
+        return GaussianPlume(RELEASE_1BQ, wind_speed=2.0, stability_category=cat, release_height=H)
+
+    def test_xy_grid_shape(self):
+        plume = self._plume()
+        x_edges = [0.0, 500.0, 1000.0, 2000.0]
+        y_edges = [-200.0, 0.0, 200.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges)
+        assert grid["Cs137"].shape == (3, 2)
+
+    def test_xyz_grid_shape(self):
+        plume = self._plume()
+        x_edges = [0.0, 500.0, 1000.0]
+        y_edges = [-100.0, 0.0, 100.0]
+        z_edges = [0.0, 10.0, 50.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges, z_edges)
+        assert grid["Cs137"].shape == (2, 2, 2)
+
+    def test_xy_grid_centreline_matches_centreline_concentration(self):
+        """Grid value at y=0, z=0 must match centreline_concentration()."""
+        plume = self._plume()
+        x_edges = [950.0, 1050.0]
+        y_edges = [-10.0, 10.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges)
+        # Bin centre x=1000, y=0
+        expected = plume.centreline_concentration(1000.0)["Cs137"]
+        assert grid["Cs137"][0, 0] == pytest.approx(expected, rel=1e-9)
+
+    def test_all_positive_for_valid_x_bins(self):
+        plume = self._plume()
+        x_edges = [100.0, 500.0, 1000.0, 5000.0]
+        y_edges = [-500.0, 0.0, 500.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges)
+        assert np.all(grid["Cs137"] > 0)
+
+    def test_negative_x_bins_are_nan(self):
+        plume = self._plume()
+        x_edges = [-200.0, 0.0, 1000.0]
+        y_edges = [-100.0, 100.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges)
+        # First bin centre is -100 (≤ 0) → NaN
+        assert np.isnan(grid["Cs137"][0, 0])
+        # Second bin centre is 500 (> 0) → finite
+        assert np.isfinite(grid["Cs137"][1, 0])
+
+    def test_concentration_symmetric_about_y0(self):
+        plume = self._plume()
+        x_edges = [500.0, 1000.0, 1500.0]
+        y_edges = [-200.0, -100.0, 0.0, 100.0, 200.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges)
+        # y bins at -150 and +150 should be equal (by symmetry)
+        assert grid["Cs137"][0, 0] == pytest.approx(grid["Cs137"][0, 3], rel=1e-9)
+
+    def test_too_few_x_edges_raises(self):
+        plume = self._plume()
+        with pytest.raises(ValueError, match="x_edges"):
+            plume.concentration_on_grid([1000.0], [-100.0, 100.0])
+
+    def test_too_few_y_edges_raises(self):
+        plume = self._plume()
+        with pytest.raises(ValueError, match="y_edges"):
+            plume.concentration_on_grid([0.0, 1000.0], [0.0])
+
+    def test_too_few_z_edges_raises(self):
+        plume = self._plume()
+        with pytest.raises(ValueError, match="z_edges"):
+            plume.concentration_on_grid([0.0, 1000.0], [-100.0, 100.0], [0.0])
+
+    def test_negative_z_edge_raises(self):
+        plume = self._plume()
+        with pytest.raises(ValueError, match="non-negative"):
+            plume.concentration_on_grid([0.0, 1000.0], [-100.0, 100.0], [-10.0, 0.0, 100.0])
+
+    def test_multi_nuclide_grid(self):
+        plume = GaussianPlume({"Co60": 2.0, "Cs137": 4.0}, wind_speed=2.0,
+                              stability_category="D", release_height=0.0)
+        x_edges = [500.0, 1000.0, 2000.0]
+        y_edges = [-100.0, 0.0, 100.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges)
+        assert set(grid.keys()) == {"Co60", "Cs137"}
+        # Co60 rate is half Cs137 → concentrations in same ratio everywhere
+        ratio = grid["Co60"] / grid["Cs137"]
+        assert np.all(np.isclose(ratio, 0.5, rtol=1e-9))
+
+    def test_xyz_values_match_air_concentration(self):
+        """Each xyz grid value must match the scalar air_concentration call."""
+        plume = self._plume(H=20.0)
+        x_edges = [500.0, 1000.0, 2000.0]
+        y_edges = [-100.0, 0.0, 100.0]
+        z_edges = [0.0, 10.0, 30.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges, z_edges)
+        x_centres = [750.0, 1500.0]
+        y_centres = [-50.0, 50.0]
+        z_centres = [5.0, 20.0]
+        for ix, x in enumerate(x_centres):
+            for iy, y in enumerate(y_centres):
+                for iz, z in enumerate(z_centres):
+                    expected = plume.air_concentration(x, y, z)["Cs137"]
+                    assert grid["Cs137"][ix, iy, iz] == pytest.approx(expected, rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# GaussianPlume – plot_centreline() and plot_xy_slice()
+# ---------------------------------------------------------------------------
+
+
+class TestPlotCentreline:
+    """Tests for plot_centreline()."""
+
+    def _plume(self):
+        return GaussianPlume(RELEASE_1BQ, wind_speed=2.0, stability_category="D", release_height=0.0)
+
+    def test_returns_axes(self):
+        plume = self._plume()
+        ax = plume.plot_centreline([0.0, 500.0, 1000.0, 2000.0])
+        assert hasattr(ax, "plot")
+
+    def test_uses_provided_axes(self):
+        plume = self._plume()
+        fig, provided_ax = plt.subplots()
+        returned_ax = plume.plot_centreline([0.0, 500.0, 1000.0], ax=provided_ax)
+        assert returned_ax is provided_ax
+
+    def test_line_data_matches_centreline_concentration(self):
+        plume = self._plume()
+        x_edges = [500.0, 1000.0, 2000.0, 5000.0]
+        ax = plume.plot_centreline(x_edges)
+        line = ax.lines[0]
+        y_data = line.get_ydata()
+        expected = [
+            plume.centreline_concentration(750.0)["Cs137"],
+            plume.centreline_concentration(1500.0)["Cs137"],
+            plume.centreline_concentration(3500.0)["Cs137"],
+        ]
+        for val, exp in zip(y_data, expected):
+            assert val == pytest.approx(exp, rel=1e-9)
+
+    def test_multi_nuclide_requires_nuclide_arg(self):
+        plume = GaussianPlume({"Co60": 3.7e10, "Cs137": 1.0e9},
+                              wind_speed=2.0, stability_category="D", release_height=0.0)
+        with pytest.raises(ValueError, match="nuclide must be specified"):
+            plume.plot_centreline([0.0, 1000.0, 2000.0])
+
+    def test_invalid_nuclide_raises(self):
+        plume = self._plume()
+        with pytest.raises(ValueError, match="not found in release"):
+            plume.plot_centreline([0.0, 1000.0], nuclide="Sr90")
+
+
+class TestPlotXYSlice:
+    """Tests for plot_xy_slice()."""
+
+    def _plume(self):
+        return GaussianPlume(RELEASE_1BQ, wind_speed=2.0, stability_category="D", release_height=0.0)
+
+    def test_returns_axes(self):
+        plume = self._plume()
+        x_edges = [0.0, 500.0, 1000.0, 2000.0]
+        y_edges = [-500.0, 0.0, 500.0]
+        ax = plume.plot_xy_slice(x_edges, y_edges)
+        assert hasattr(ax, "pcolormesh")
+
+    def test_uses_provided_axes(self):
+        plume = self._plume()
+        fig, provided_ax = plt.subplots()
+        returned_ax = plume.plot_xy_slice(
+            [0.0, 500.0, 1000.0], [-200.0, 0.0, 200.0], ax=provided_ax
+        )
+        assert returned_ax is provided_ax
+
+    def test_multi_nuclide_requires_nuclide_arg(self):
+        plume = GaussianPlume({"Co60": 3.7e10, "Cs137": 1.0e9},
+                              wind_speed=2.0, stability_category="D", release_height=0.0)
+        with pytest.raises(ValueError, match="nuclide must be specified"):
+            plume.plot_xy_slice([0.0, 1000.0], [-100.0, 100.0])
+
+    def test_log_scale_false(self):
+        plume = self._plume()
+        ax = plume.plot_xy_slice(
+            [0.0, 500.0, 1000.0], [-200.0, 0.0, 200.0], log_scale=False
+        )
+        assert ax is not None
