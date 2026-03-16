@@ -1,0 +1,166 @@
+{
+  "nuclides": {
+    "Co60": {
+      "name": "Co60",
+      "long_name": "Cobalt-60",
+      "symbol": "Co",
+      "A": 60,
+      "Z": 27,
+      "stable": false,
+      "half_life_seconds": 1.66348e8,
+      "half_life_years": 5.2713,
+      "decay_modes": [
+        {
+          "mode": "beta-",
+          "branching_fraction": 0.9988,
+          "q_value_MeV": 2.824,
+          "endpoint_energy_MeV": 0.318,
+          "daughter": "Ni60"
+        },
+        {
+          "mode": "beta-",
+          "branching_fraction": 0.0012,
+          "q_value_MeV": 2.824,
+          "endpoint_energy_MeV": 1.491,
+          "daughter": "Ni60"
+        }
+      ],
+      "gamma_lines": [
+        {"energy_MeV": 1.1732, "intensity_percent": 99.85},
+        {"energy_MeV": 1.3325, "intensity_percent": 99.98}
+      ],
+      "x_ray_lines": [],
+      "beta_lines": [
+        {"endpoint_energy_MeV": 0.318, "intensity_percent": 99.88},
+        {"endpoint_energy_MeV": 1.491, "intensity_percent": 0.12}
+      ]
+    },
+    "Fe55": {
+      "name": "Fe55",
+      "long_name": "Iron-55",
+      "symbol": "Fe",
+      "A": 55,
+      "Z": 26,
+      "stable": false,
+      "half_life_seconds": 8.6256e7,
+      "half_life_years": 2.7337,
+      "decay_modes": [
+        {
+          "mode": "electron_capture",
+          "branching_fraction": 1.0,
+          "q_value_MeV": 0.2314,
+          "endpoint_energy_MeV": null,
+          "daughter": "Mn55"
+        }
+      ],
+      "gamma_lines": [],
+      "x_ray_lines": [
+        {"energy_MeV": 0.005899, "intensity_percent": 24.4,  "description": "Mn K-alpha"},
+        {"energy_MeV": 0.006490, "intensity_percent": 2.85,  "description": "Mn K-beta"}
+      ],
+      "beta_lines": []
+    },
+    "Cs137": {
+      "name": "Cs137",
+      "long_name": "Caesium-137",
+      "symbol": "Cs",
+      "A": 137,
+      "Z": 55,
+      "stable": false,
+      "half_life_seconds": 9.5133e8,
+      "half_life_years": 30.167,
+      "decay_modes": [
+        {
+          "mode": "beta-",
+          "branching_fraction": 0.9435,
+          "q_value_MeV": 1.176,
+          "endpoint_energy_MeV": 0.5120,
+          "daughter": "Ba137m"
+        },
+        {
+          "mode": "beta-",
+          "branching_fraction": 0.0565,
+          "q_value_MeV": 1.176,
+          "endpoint_energy_MeV": 1.1756,
+          "daughter": "Ba137"
+        }
+      ],
+      "gamma_lines": [
+        {
+          "energy_MeV": 0.6617,
+          "intensity_percent": 85.1,
+          "note": "From Ba-137m daughter (secular equilibrium assumed)"
+        }
+      ],
+      "x_ray_lines": [],
+      "beta_lines": [
+        {"endpoint_energy_MeV": 0.5120, "intensity_percent": 94.35},
+        {"endpoint_energy_MeV": 1.1756, "intensity_percent": 5.65}
+      ]
+    },
+    "H3": {
+      "name": "H3",
+      "long_name": "Tritium",
+      "symbol": "H",
+      "A": 3,
+      "Z": 1,
+      "stable": false,
+      "half_life_seconds": 3.8879e8,
+      "half_life_years": 12.32,
+      "decay_modes": [
+        {
+          "mode": "beta-",
+          "branching_fraction": 1.0,
+          "q_value_MeV": 0.01859,
+          "endpoint_energy_MeV": 0.01859,
+          "daughter": "He3"
+        }
+      ],
+      "gamma_lines": [],
+      "x_ray_lines": [],
+      "beta_lines": [
+        {"endpoint_energy_MeV": 0.01859, "intensity_percent": 100.0}
+      ]
+    },
+    "Sr90": {
+      "name": "Sr90",
+      "long_name": "Strontium-90",
+      "symbol": "Sr",
+      "A": 90,
+      "Z": 38,
+      "stable": false,
+      "half_life_seconds": 9.0855e8,
+      "half_life_years": 28.8,
+      "decay_modes": [
+        {
+          "mode": "beta-",
+          "branching_fraction": 1.0,
+          "q_value_MeV": 0.546,
+          "endpoint_energy_MeV": 0.546,
+          "daughter": "Y90"
+        }
+      ],
+      "gamma_lines": [],
+      "x_ray_lines": [],
+      "beta_lines": [
+        {"endpoint_energy_MeV": 0.546, "intensity_percent": 100.0}
+      ]
+    },
+    "Fe56": {
+      "name": "Fe56",
+      "long_name": "Iron-56",
+      "symbol": "Fe",
+      "A": 56,
+      "Z": 26,
+      "stable": true
+    },
+    "Co59": {
+      "name": "Co59",
+      "long_name": "Cobalt-59",
+      "symbol": "Co",
+      "A": 59,
+      "Z": 27,
+      "stable": true
+    }
+  }
+}
