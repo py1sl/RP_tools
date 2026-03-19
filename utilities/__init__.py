@@ -6,6 +6,7 @@ model) each live in their own top-level folder and import from this package.
 """
 
 from utilities.nuclide import Nuclide, load_nuclides
+from utilities.icrp_data import ICRPDataLibrary, ICRPTable, load_icrp_data
 from utilities.radioactive_decay import (
     activity_at_time,
     decay_constant,
@@ -16,6 +17,9 @@ from utilities.radioactive_decay import (
 __all__ = [
     "Nuclide",
     "load_nuclides",
+    "ICRPTable",
+    "ICRPDataLibrary",
+    "load_icrp_data",
     "activity_at_time",
     "decay_constant",
     "decays_in_period",

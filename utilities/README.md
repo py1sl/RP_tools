@@ -59,6 +59,28 @@ A = activity_at_time(3.7e10, T_HALF, 3.15576e7)
 N = decays_in_period(3.7e10, T_HALF, t_start=0, duration=3600)
 ```
 
+### `icrp_data.py`
+
+Class-based loader for external dose-coefficient tables from:
+
+* `data/icrp74/*.txt`
+* `data/icrp116/*.txt`
+
+Use this module when tools need geometry-specific conversion coefficients
+(`AP`, `PA`, `ISO`, etc.) as tabulated by ICRP.
+
+**Quick example**
+
+```python
+from utilities.icrp_data import ICRPDataLibrary
+
+lib = ICRPDataLibrary()
+table = lib.get_table("116", "photons")
+
+energies = table.energies_MeV
+ap_coeff = table.column("AP")
+```
+
 ## Adding New Shared Modules
 
 Place new shared utility modules directly in this directory and export them

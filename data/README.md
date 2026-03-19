@@ -50,3 +50,14 @@ nuclide name (e.g. `"Co60"`, `"Cs137"`) and contains:
 Add a new key to `nuclides.json` following the schema above. Nuclear data
 should be sourced from evaluated nuclear data libraries such as ENSDF, NUBASE,
 or IAEA's Live Chart of Nuclides.
+
+### `icrp74/` and `icrp116/`
+
+Text tables of effective dose-per-fluence conversion coefficients for external
+exposure geometries. These files are loaded by `utilities.icrp_data`.
+
+Each table includes:
+
+* a short description line,
+* a header row (`Energy (MeV)` plus geometry columns),
+* numeric rows for monoenergetic particles.
