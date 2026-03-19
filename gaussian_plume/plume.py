@@ -38,16 +38,12 @@ from __future__ import annotations
 
 import math
 from typing import Sequence
-
 import numpy as np
 
 from gaussian_plume.dispersion import STABILITY_CATEGORIES, sigma_y, sigma_z
+import gaussian_plume.grid
 
 
-def _bin_centres(edges: list[float]) -> np.ndarray:
-    """Return the midpoints between consecutive bin edges."""
-    arr = np.asarray(edges, dtype=float)
-    return 0.5 * (arr[:-1] + arr[1:])
 
 
 class GaussianPlume:
@@ -227,8 +223,8 @@ class GaussianPlume:
         if len(y_edges) < 2:
             raise ValueError("y_edges must have at least two values.")
 
-        x_centres = _bin_centres(x_edges)
-        y_centres = _bin_centres(y_edges)
+        x_centres = gaussian_plume.grid.bin_centres(x_edges)
+        y_centres = gaussian_plume.grid.bin_centres(y_edges)
 
         if z_edges is None:
             # xy slice at ground level
@@ -240,7 +236,7 @@ class GaussianPlume:
                 raise ValueError("z_edges must have at least two values.")
             if any(z < 0 for z in z_edges):
                 raise ValueError("All z_edges values must be non-negative.")
-            z_centres = _bin_centres(z_edges)
+            z_centres = gaussian_plume.grid.bin_centres(z_edges)
             squeeze_z = False
 
         nx = len(x_centres)
@@ -379,7 +375,7 @@ class GaussianPlume:
         import matplotlib.pyplot as plt
 
         nuclide = self._resolve_nuclide(nuclide)
-        x_centres = _bin_centres(list(x_edges))
+        x_centres = gaussian_plume.grid.bin_centres(list(x_edges))
         concentrations = []
         for x in x_centres:
             if x > 0:
