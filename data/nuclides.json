@@ -98,6 +98,34 @@
         {"endpoint_energy_MeV": 1.1756, "intensity_percent": 5.65}
       ]
     },
+    "I131": {
+      "name": "I131",
+      "long_name": "Iodine-131",
+      "symbol": "I",
+      "A": 131,
+      "Z": 53,
+      "stable": false,
+      "half_life_seconds": 6.93504e5,
+      "half_life_years": 0.02198,
+      "decay_modes": [
+        {
+          "mode": "beta-",
+          "branching_fraction": 1.0,
+          "q_value_MeV": 0.971,
+          "endpoint_energy_MeV": 0.606,
+          "daughter": "Xe131"
+        }
+      ],
+      "gamma_lines": [
+        {"energy_MeV": 0.2843, "intensity_percent": 6.1},
+        {"energy_MeV": 0.3645, "intensity_percent": 81.2},
+        {"energy_MeV": 0.6370, "intensity_percent": 7.3}
+      ],
+      "x_ray_lines": [],
+      "beta_lines": [
+        {"endpoint_energy_MeV": 0.606, "intensity_percent": 89.0}
+      ]
+    },
     "H3": {
       "name": "H3",
       "long_name": "Tritium",

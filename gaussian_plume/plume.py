@@ -181,6 +181,7 @@ class GaussianPlume:
         """
         return self.air_concentration(x, 0.0, 0.0)
 
+
     def concentration_on_grid(
         self,
         x_edges: Sequence[float],

@@ -19,7 +19,7 @@ class TestLoadNuclides:
         assert isinstance(nuclides, dict)
 
     def test_expected_keys_present(self, nuclides):
-        for key in ("Co60", "Fe55", "Cs137", "H3", "Sr90", "Fe56", "Co59"):
+        for key in ("Co60", "Fe55", "Cs137", "I131", "H3", "Sr90", "Fe56", "Co59"):
             assert key in nuclides, f"Expected nuclide '{key}' not found in loaded data"
 
     def test_values_are_nuclide_instances(self, nuclides):
@@ -184,6 +184,24 @@ class TestCs137:
 
     def test_beta_lines(self, nuclides):
         assert len(nuclides["Cs137"].beta_lines) == 2
+
+
+# ---------------------------------------------------------------------------
+# Nuclide – I-131
+# ---------------------------------------------------------------------------
+
+
+class TestI131:
+    def test_not_stable(self, nuclides):
+        assert nuclides["I131"].stable is False
+
+    def test_half_life_about_8_days(self, nuclides):
+        hl_years = nuclides["I131"].half_life_years
+        assert 0.021 < hl_years < 0.023
+
+    def test_gamma_line_364_keV(self, nuclides):
+        energies = [g["energy_MeV"] for g in nuclides["I131"].gamma_lines]
+        assert any(abs(e - 0.3645) < 0.001 for e in energies)
 
 
 # ---------------------------------------------------------------------------

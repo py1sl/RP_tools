@@ -81,6 +81,52 @@ energies = table.energies_MeV
 ap_coeff = table.column("AP")
 ```
 
+### `immersion_dose.py`
+
+Model-agnostic post-processing utilities that convert concentration data
+(`Bq/m^3`) into external immersion effective dose rate (`Sv/s`) using nuclide
+gamma emission lines and ICRP photon dose-per-fluence coefficients.
+
+This module is independent of how concentrations are produced (Gaussian plume,
+CFD, measurements, etc.).
+
+**Quick example**
+
+```python
+from utilities.immersion_dose import ImmersionDoseCalculator
+
+calc = ImmersionDoseCalculator(geometry="ISO", publication="116")
+
+# Point concentration (per nuclide)
+dose_point = calc.dose_rate_from_concentration({"Cs137": 2.5e3})
+
+# Grid concentration (per nuclide)
+dose_grid = calc.dose_rate_on_grid({"Cs137": concentration_grid})
+```
+
+### `ground_plane_dose.py`
+
+Model-agnostic post-processing utilities for external gamma dose from
+deposited activity on the ground (semi-infinite plane approximation).
+
+Input is deposition (`Bq/m^2`) per nuclide at points or on grids; output is
+dose rate (`Sv/s`) per nuclide using nuclide gamma lines and ICRP photon
+dose-per-fluence coefficients.
+
+**Quick example**
+
+```python
+from utilities.ground_plane_dose import SemiInfinitePlaneDoseCalculator
+
+calc = SemiInfinitePlaneDoseCalculator(geometry="ISO", publication="116")
+
+# Point deposition (per nuclide)
+dose_point = calc.dose_rate_from_deposition({"Cs137": 2.5e5})
+
+# Grid deposition (per nuclide)
+dose_grid = calc.dose_rate_on_grid({"Cs137": deposition_grid})
+```
+
 ## Adding New Shared Modules
 
 Place new shared utility modules directly in this directory and export them
