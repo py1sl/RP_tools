@@ -28,10 +28,13 @@ Reference:
 
 from gaussian_plume.dispersion import STABILITY_CATEGORIES, sigma_y, sigma_z
 from gaussian_plume.plume import GaussianPlume
+from gaussian_plume.dry_deposition import DEFAULT_DEPOSITION_VELOCITY_M_S, DryDepositionModel
 
 __all__ = [
     "GaussianPlume",
     "STABILITY_CATEGORIES",
     "sigma_y",
     "sigma_z",
+    "DryDepositionModel",
+    "DEFAULT_DEPOSITION_VELOCITY_M_S",
 ]
