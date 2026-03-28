@@ -44,8 +44,6 @@ from gaussian_plume.dispersion import STABILITY_CATEGORIES, sigma_y, sigma_z
 import gaussian_plume.grid
 
 
-
-
 class GaussianPlume:
     """Continuous-release elevated Gaussian plume model (NRPB-R91).
 
@@ -180,7 +178,6 @@ class GaussianPlume:
             ValueError: If *x* ≤ 0.
         """
         return self.air_concentration(x, 0.0, 0.0)
-
 
     def concentration_on_grid(
         self,
