@@ -29,6 +29,7 @@ Reference:
 from gaussian_plume.dispersion import STABILITY_CATEGORIES, sigma_y, sigma_z
 from gaussian_plume.plume import GaussianPlume
 from gaussian_plume.dry_deposition import DEFAULT_DEPOSITION_VELOCITY_M_S, DryDepositionModel
+from gaussian_plume.wet_deposition import DEFAULT_WASHOUT_COEFFICIENT_M_S, WetDepositionModel
 
 __all__ = [
     "GaussianPlume",
@@ -37,4 +38,6 @@ __all__ = [
     "sigma_z",
     "DryDepositionModel",
     "DEFAULT_DEPOSITION_VELOCITY_M_S",
+    "WetDepositionModel",
+    "DEFAULT_WASHOUT_COEFFICIENT_M_S",
 ]
