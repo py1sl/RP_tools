@@ -24,9 +24,18 @@ where:
 The ground reflection term (image source at −H) assumes perfect reflection
 with no deposition at ground level.
 
+When radioactive decay is enabled (via the *half_lives* parameter), the
+effective release rate is reduced by the radioactive decay that occurs during
+atmospheric transport::
+
+    Q_eff(x) = Q · exp(−λ · x / ū)
+
+where λ = ln(2) / T½ is the decay constant and x / ū is the travel time
+from source to receptor.
+
 .. note::
-    This implementation does not currently account for dry or wet deposition,
-    radioactive decay during transport, or building-wake effects.
+    This implementation does not currently account for dry or wet deposition
+    or building-wake effects.
 
 Reference:
     Simmonds, J. R. et al. (1993). *The Methodology for Assessing the
@@ -52,6 +61,12 @@ class GaussianPlume:
     dispersion parametrisation from NRPB-R91.  A perfect ground-reflection
     boundary condition is applied (no deposition).
 
+    Radioactive decay during atmospheric transport can optionally be accounted
+    for by supplying *half_lives*.  The travel time from the source to a
+    receptor at downwind distance *x* is estimated as ``x / wind_speed``, and
+    the release rate for each nuclide is reduced by the factor
+    ``exp(−λ · x / ū)`` before computing the concentration.
+
     Args:
         release: Source term — a mapping of nuclide name to continuous release
             rate in Bq/s.  Example: ``{"Co60": 3.7e10, "Cs137": 1.0e9}``.
@@ -62,11 +77,20 @@ class GaussianPlume:
             one of ``'A'``–``'F'`` (A = very unstable, F = moderately stable).
         release_height: Effective release height above ground level (m).
             Use ``0`` for a ground-level release.  Must be ≥ 0.
+        half_lives: Optional mapping of nuclide name to half-life in seconds.
+            When provided, radioactive decay during atmospheric transport is
+            included.  Only nuclides listed here have decay applied; any
+            nuclide in *release* that is absent from *half_lives* is treated
+            as stable.  All half-lives must be positive.  Any nuclide name in
+            *half_lives* that is absent from *release* raises a
+            :exc:`ValueError`.  If ``None`` (default), no decay correction is
+            applied.
 
     Raises:
         ValueError: If *wind_speed* ≤ 0, *release_height* < 0, *release* is
-            empty, any release rate is negative, or *stability_category* is
-            not one of ``'A'``–``'F'``.
+            empty, any release rate is negative, *stability_category* is not
+            one of ``'A'``–``'F'``, any half-life is not positive, or
+            *half_lives* contains a nuclide not present in *release*.
 
     Example::
 
@@ -77,6 +101,7 @@ class GaussianPlume:
             wind_speed=2.0,
             stability_category="D",
             release_height=50.0,
+            half_lives={"Cs137": 9.496e8, "Co60": 1.663e8},  # seconds
         )
         chi = plume.centreline_concentration(x=1000.0)
         # {"Cs137": <float> Bq/m³, "Co60": <float> Bq/m³}
@@ -88,6 +113,7 @@ class GaussianPlume:
         wind_speed: float,
         stability_category: str,
         release_height: float,
+        half_lives: dict[str, float] | None = None,
     ) -> None:
         if wind_speed <= 0:
             raise ValueError(f"wind_speed must be positive, got {wind_speed}")
@@ -105,11 +131,22 @@ class GaussianPlume:
                 raise ValueError(
                     f"Release rate for '{name}' must be non-negative, got {rate}"
                 )
+        if half_lives is not None:
+            for name, hl in half_lives.items():
+                if name not in release:
+                    raise ValueError(
+                        f"half_lives contains nuclide '{name}' which is not in the release."
+                    )
+                if hl <= 0:
+                    raise ValueError(
+                        f"half_life for '{name}' must be positive, got {hl}"
+                    )
 
         self.release: dict[str, float] = dict(release)
         self.wind_speed: float = wind_speed
         self.stability_category: str = stability_category
         self.release_height: float = release_height
+        self.half_lives: dict[str, float] | None = dict(half_lives) if half_lives is not None else None
 
     # ------------------------------------------------------------------
     # Concentration calculations
@@ -120,12 +157,15 @@ class GaussianPlume:
 
         Applies the Gaussian plume equation with ground reflection::
 
-            χ = Q / (2π · ū · σy · σz)
+            χ = Q_eff / (2π · ū · σy · σz)
                 · exp[−y² / (2σy²)]
                 · { exp[−(z−H)² / (2σz²)]  +  exp[−(z+H)² / (2σz²)] }
 
-        The concentration for each nuclide is proportional to its release rate
-        in :attr:`release`.
+        where ``Q_eff = Q · exp(−λ · x / ū)`` when radioactive decay is
+        enabled (see :attr:`half_lives`), or ``Q_eff = Q`` otherwise.
+
+        The concentration for each nuclide is proportional to its effective
+        (decay-corrected) release rate.
 
         Args:
             x: Downwind distance from the source (m).  Must be positive.
@@ -157,7 +197,7 @@ class GaussianPlume:
         # Common dispersion factor (m⁻³); multiply by Q (Bq/s) to get Bq/m³.
         factor = crosswind * vertical / (2.0 * math.pi * u * sy * sz)
 
-        return {name: Q * factor for name, Q in self.release.items()}
+        return {name: Q * factor for name, Q in self._decayed_release(x).items()}
 
     def centreline_concentration(self, x: float) -> dict[str, float]:
         """Return ground-level centreline air concentration (Bq/m³) at distance x.
@@ -267,7 +307,7 @@ class GaussianPlume:
                 crosswind[:, np.newaxis] * vertical[np.newaxis, :]
                 / (2.0 * math.pi * u * sy * sz)
             )                                                               # (ny, nz)
-            for name, Q in self.release.items():
+            for name, Q in self._decayed_release(x).items():
                 result[name][ix] = Q * factor
 
         if squeeze_z:
@@ -396,6 +436,37 @@ class GaussianPlume:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _decayed_release(self, x: float) -> dict[str, float]:
+        """Return per-nuclide release rates corrected for radioactive decay.
+
+        The travel time from the source to downwind distance *x* is estimated
+        as ``x / wind_speed``.  For each nuclide listed in :attr:`half_lives`,
+        the release rate is multiplied by ``exp(−λ · x / ū)`` where
+        ``λ = ln(2) / T½``.  Nuclides absent from :attr:`half_lives` are
+        returned unchanged.
+
+        If :attr:`half_lives` is ``None``, :attr:`release` is returned
+        directly without copying.
+
+        Args:
+            x: Downwind distance from the source (m).  Must be positive.
+
+        Returns:
+            Dictionary mapping each nuclide name to its effective release rate
+            in Bq/s after decay correction.
+        """
+        if self.half_lives is None:
+            return self.release
+        t = x / self.wind_speed
+        result: dict[str, float] = {}
+        for name, Q in self.release.items():
+            if name in self.half_lives:
+                lam = math.log(2) / self.half_lives[name]
+                result[name] = Q * math.exp(-lam * t)
+            else:
+                result[name] = Q
+        return result
+
     def _resolve_nuclide(self, nuclide: str | None) -> str:
         """Return the nuclide name to use, inferring it when only one exists.
 
@@ -423,9 +494,13 @@ class GaussianPlume:
 
     def __repr__(self) -> str:
         nuclides = ", ".join(f"{k}: {v:.3g} Bq/s" for k, v in self.release.items())
+        decay_str = ""
+        if self.half_lives is not None:
+            hl_parts = ", ".join(f"{k}: {v:.3g} s" for k, v in self.half_lives.items())
+            decay_str = f", half_lives={{{hl_parts}}}"
         return (
             f"GaussianPlume(release={{{nuclides}}}, "
             f"wind_speed={self.wind_speed} m/s, "
             f"stability={self.stability_category!r}, "
-            f"H={self.release_height} m)"
+            f"H={self.release_height} m{decay_str})"
         )
