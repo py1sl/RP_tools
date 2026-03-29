@@ -584,3 +584,214 @@ class TestPlotXYSlice:
             [0.0, 500.0, 1000.0], [-200.0, 0.0, 200.0], log_scale=False
         )
         assert ax is not None
+
+
+# ---------------------------------------------------------------------------
+# GaussianPlume – radioactive decay during transport
+# ---------------------------------------------------------------------------
+
+
+class TestRadioactiveDecay:
+    """Tests for the optional radioactive decay correction (half_lives parameter)."""
+
+    # Half-life chosen so that at x=1000m, u=2m/s (t=500s), the decay factor
+    # is exp(-ln(2)/1000 * 500) = 2^(-0.5).
+    HALF_LIFE_1000S = 1000.0  # seconds
+
+    def _plume_no_decay(self, release=None, H=0.0, u=2.0):
+        return GaussianPlume(
+            release=release or RELEASE_1BQ,
+            wind_speed=u,
+            stability_category="D",
+            release_height=H,
+        )
+
+    def _plume_with_decay(self, half_lives, release=None, H=0.0, u=2.0):
+        return GaussianPlume(
+            release=release or RELEASE_1BQ,
+            wind_speed=u,
+            stability_category="D",
+            release_height=H,
+            half_lives=half_lives,
+        )
+
+    # ------------------------------------------------------------------
+    # Construction and validation
+    # ------------------------------------------------------------------
+
+    def test_default_half_lives_is_none(self):
+        plume = self._plume_no_decay()
+        assert plume.half_lives is None
+
+    def test_half_lives_stored(self):
+        hl = {"Cs137": self.HALF_LIFE_1000S}
+        plume = self._plume_with_decay(hl)
+        assert plume.half_lives == hl
+
+    def test_half_lives_dict_is_copy(self):
+        hl = {"Cs137": self.HALF_LIFE_1000S}
+        plume = self._plume_with_decay(hl)
+        hl["Cs137"] = 999.0
+        assert plume.half_lives["Cs137"] == self.HALF_LIFE_1000S
+
+    def test_unknown_nuclide_in_half_lives_raises(self):
+        with pytest.raises(ValueError, match="not in the release"):
+            self._plume_with_decay({"Sr90": 1.0e9})
+
+    def test_zero_half_life_raises(self):
+        with pytest.raises(ValueError, match="half_life for 'Cs137' must be positive"):
+            self._plume_with_decay({"Cs137": 0.0})
+
+    def test_negative_half_life_raises(self):
+        with pytest.raises(ValueError, match="half_life for 'Cs137' must be positive"):
+            self._plume_with_decay({"Cs137": -500.0})
+
+    def test_partial_half_lives_allowed(self):
+        """Only some nuclides need half-lives; others are treated as stable."""
+        plume = GaussianPlume(
+            release=RELEASE_MULTI,
+            wind_speed=2.0,
+            stability_category="D",
+            release_height=0.0,
+            half_lives={"Co60": 1.663e8},
+        )
+        assert "Co60" in plume.half_lives
+        assert "Cs137" not in plume.half_lives
+
+    # ------------------------------------------------------------------
+    # Physical behaviour
+    # ------------------------------------------------------------------
+
+    def test_no_decay_gives_same_result_as_none(self):
+        """half_lives=None must give identical results to omitting the argument."""
+        plume_no_hl = self._plume_no_decay()
+        plume_hl_none = GaussianPlume(
+            release=RELEASE_1BQ,
+            wind_speed=2.0,
+            stability_category="D",
+            release_height=0.0,
+            half_lives=None,
+        )
+        chi_no = plume_no_hl.centreline_concentration(X_1000)["Cs137"]
+        chi_none = plume_hl_none.centreline_concentration(X_1000)["Cs137"]
+        assert chi_no == pytest.approx(chi_none, rel=1e-12)
+
+    def test_decay_reduces_concentration(self):
+        """With a finite half-life the concentration must be lower than without decay."""
+        plume_no_decay = self._plume_no_decay()
+        plume_decay = self._plume_with_decay({"Cs137": self.HALF_LIFE_1000S})
+        chi_no = plume_no_decay.centreline_concentration(X_1000)["Cs137"]
+        chi_decay = plume_decay.centreline_concentration(X_1000)["Cs137"]
+        assert chi_decay < chi_no
+
+    def test_known_decay_factor_centreline(self):
+        """Verify the exact decay factor at x=1000m, u=2m/s, T½=1000s.
+
+        Travel time t = 1000/2 = 500 s.
+        Decay factor = exp(-ln(2)/1000 * 500) = 2^(-0.5).
+        """
+        plume_no_decay = self._plume_no_decay()
+        plume_decay = self._plume_with_decay({"Cs137": self.HALF_LIFE_1000S})
+        chi_no = plume_no_decay.centreline_concentration(X_1000)["Cs137"]
+        chi_decay = plume_decay.centreline_concentration(X_1000)["Cs137"]
+        expected_factor = 2.0 ** (-0.5)
+        assert chi_decay == pytest.approx(chi_no * expected_factor, rel=1e-9)
+
+    def test_known_decay_factor_air_concentration_off_axis(self):
+        """Decay factor applies equally at off-axis points."""
+        plume_no_decay = self._plume_no_decay()
+        plume_decay = self._plume_with_decay({"Cs137": self.HALF_LIFE_1000S})
+        chi_no = plume_no_decay.air_concentration(X_1000, 50.0, 0.0)["Cs137"]
+        chi_decay = plume_decay.air_concentration(X_1000, 50.0, 0.0)["Cs137"]
+        expected_factor = 2.0 ** (-0.5)
+        assert chi_decay == pytest.approx(chi_no * expected_factor, rel=1e-9)
+
+    def test_decay_increases_with_distance(self):
+        """Fractional reduction from decay must be larger at greater distance."""
+        plume_no_decay = self._plume_no_decay()
+        plume_decay = self._plume_with_decay({"Cs137": self.HALF_LIFE_1000S})
+        ratio_near = (
+            plume_decay.centreline_concentration(X_500)["Cs137"]
+            / plume_no_decay.centreline_concentration(X_500)["Cs137"]
+        )
+        ratio_far = (
+            plume_decay.centreline_concentration(X_5000)["Cs137"]
+            / plume_no_decay.centreline_concentration(X_5000)["Cs137"]
+        )
+        # Further away → more decay → smaller ratio
+        assert ratio_far < ratio_near
+
+    def test_stable_nuclide_unaffected_when_partial_half_lives(self):
+        """A nuclide absent from half_lives must be unaffected by decay."""
+        plume_no_hl = GaussianPlume(
+            release=RELEASE_MULTI,
+            wind_speed=2.0,
+            stability_category="D",
+            release_height=0.0,
+        )
+        plume_partial = GaussianPlume(
+            release=RELEASE_MULTI,
+            wind_speed=2.0,
+            stability_category="D",
+            release_height=0.0,
+            half_lives={"Co60": 1.663e8},  # only Co60 decays
+        )
+        # Cs137 (not in half_lives) must be unchanged
+        chi_no = plume_no_hl.centreline_concentration(X_1000)["Cs137"]
+        chi_partial = plume_partial.centreline_concentration(X_1000)["Cs137"]
+        assert chi_no == pytest.approx(chi_partial, rel=1e-12)
+        # Co60 (in half_lives) must be reduced
+        chi_co60_no = plume_no_hl.centreline_concentration(X_1000)["Co60"]
+        chi_co60_partial = plume_partial.centreline_concentration(X_1000)["Co60"]
+        assert chi_co60_partial < chi_co60_no
+
+    def test_very_long_half_life_negligible_decay(self):
+        """A half-life >> travel time should give negligible change."""
+        very_long_hl = 1.0e20  # effectively stable
+        plume_no_decay = self._plume_no_decay()
+        plume_stable = self._plume_with_decay({"Cs137": very_long_hl})
+        chi_no = plume_no_decay.centreline_concentration(X_1000)["Cs137"]
+        chi_stable = plume_stable.centreline_concentration(X_1000)["Cs137"]
+        assert chi_stable == pytest.approx(chi_no, rel=1e-6)
+
+    # ------------------------------------------------------------------
+    # Grid method
+    # ------------------------------------------------------------------
+
+    def test_grid_values_match_air_concentration_with_decay(self):
+        """Grid cells with decay must agree with scalar air_concentration calls."""
+        plume = self._plume_with_decay({"Cs137": self.HALF_LIFE_1000S})
+        x_edges = [500.0, 1000.0, 2000.0]
+        y_edges = [-100.0, 0.0, 100.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges)
+        x_centres = [750.0, 1500.0]
+        y_centres = [-50.0, 50.0]
+        for ix, x in enumerate(x_centres):
+            for iy, y in enumerate(y_centres):
+                expected = plume.air_concentration(x, y, 0.0)["Cs137"]
+                assert grid["Cs137"][ix, iy] == pytest.approx(expected, rel=1e-9)
+
+    def test_grid_decay_reduces_concentration_relative_to_no_decay(self):
+        """Every grid cell with decay must be ≤ the corresponding cell without."""
+        plume_no = self._plume_no_decay()
+        plume_decay = self._plume_with_decay({"Cs137": self.HALF_LIFE_1000S})
+        x_edges = [100.0, 500.0, 1000.0, 5000.0]
+        y_edges = [-200.0, 0.0, 200.0]
+        grid_no = plume_no.concentration_on_grid(x_edges, y_edges)["Cs137"]
+        grid_decay = plume_decay.concentration_on_grid(x_edges, y_edges)["Cs137"]
+        assert np.all(grid_decay <= grid_no)
+
+    # ------------------------------------------------------------------
+    # repr
+    # ------------------------------------------------------------------
+
+    def test_repr_includes_half_lives(self):
+        hl = {"Cs137": self.HALF_LIFE_1000S}
+        plume = self._plume_with_decay(hl)
+        r = repr(plume)
+        assert "half_lives" in r
+        assert "Cs137" in r
+
+    def test_repr_no_half_lives_omits_half_lives(self):
+        plume = self._plume_no_decay()
+        assert "half_lives" not in repr(plume)
