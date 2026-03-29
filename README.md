@@ -22,6 +22,16 @@ RP_tools/
 
 ## Getting Started
 
+Install the package in editable mode with development dependencies, then run
+the test suite:
+
+```bash
+pip install -e ".[dev]"
+pytest tests/
+```
+
+Alternatively, if you prefer the legacy `requirements.txt` workflow:
+
 ```bash
 pip install -r requirements.txt
 pytest tests/
