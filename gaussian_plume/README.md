@@ -58,6 +58,7 @@ plume = GaussianPlume(
     wind_speed=2.0,                              # m/s
     stability_category="D",
     release_height=50.0,                         # metres above ground
+    half_lives={"Co60": 1.663e8, "Cs137": 9.496e8},  # seconds (optional)
 )
 
 # Ground-level centreline air concentration at 1 km downwind (Bq/m³)
@@ -155,6 +156,31 @@ grid = model.ground_concentration_on_grid(
 # {"Cs137": (5, 6) ndarray Bq/m², "Co60": (5, 6) ndarray Bq/m²}
 ```
 
+## Radioactive decay during transport
+
+When the optional *half_lives* parameter is supplied to `GaussianPlume`, the
+effective release rate at each downwind distance is reduced to account for
+radioactive decay during atmospheric transport:
+
+```
+Q_eff(x) = Q · exp(−λ · x / ū)
+```
+
+where `λ = ln(2) / T½` is the decay constant and `x / ū` is the estimated
+travel time from source to receptor.  Nuclides not listed in *half_lives* are
+treated as stable (no decay correction applied).
+
+```python
+plume = GaussianPlume(
+    release={"Co60": 3.7e10, "Cs137": 1.0e9},
+    wind_speed=2.0,
+    stability_category="D",
+    release_height=50.0,
+    half_lives={"Co60": 1.663e8, "Cs137": 9.496e8},  # seconds
+)
+chi = plume.centreline_concentration(x=1000.0)
+```
+
 ## Limitations
 
 The current implementation covers the core dispersion and dry deposition
@@ -162,6 +188,5 @@ calculations.  The following features from the full NRPB-R91 methodology are
 **not yet implemented**:
 
 * Wet deposition / ground-shine
-* Radioactive decay during atmospheric transport
 * Building-wake and urban-roughness corrections
 * Mixing-layer height capping
