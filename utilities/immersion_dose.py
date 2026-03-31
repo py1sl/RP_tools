@@ -81,26 +81,26 @@ class ImmersionDoseCalculator:
         if not gamma_lines:
             return 0.0
 
-        factor = 0.0
-        for line in gamma_lines:
-            intensity_fraction = float(line.get("intensity_percent", 0.0)) / 100.0
-            if intensity_fraction <= 0.0:
-                continue
+        # Batch energy interpolation across all active gamma lines.
+        intensities = np.array([
+            float(line.get("intensity_percent", 0.0)) / 100.0
+            for line in gamma_lines
+        ])
+        active = intensities > 0.0
+        if not np.any(active):
+            return 0.0
 
-            energy_mev = float(line["energy_MeV"])
-            k_psv_cm2 = float(
-                np.interp(
-                    energy_mev,
-                    self._energies,
-                    self._coeff_psv_cm2,
-                    left=self._coeff_psv_cm2[0],
-                    right=self._coeff_psv_cm2[-1],
-                )
-            )
-            # concentration (Bq/m^3) multiplied later by caller
-            factor += intensity_fraction * (1.0 / mu) * (1.0 / 1.0e4) * k_psv_cm2 * 1.0e-12
-
-        return factor
+        energies = np.array([float(line["energy_MeV"]) for line in gamma_lines])
+        k_values = np.interp(
+            energies[active],
+            self._energies,
+            self._coeff_psv_cm2,
+            left=self._coeff_psv_cm2[0],
+            right=self._coeff_psv_cm2[-1],
+        )
+        return float(
+            np.sum(intensities[active] * (1.0 / mu) * (1.0 / 1.0e4) * k_values * 1.0e-12)
+        )
 
     def dose_rate_from_concentration(
         self,

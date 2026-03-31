@@ -55,12 +55,10 @@ def grid_edges(
 
 def grid_shape(x_edges: list[float], y_edges: list[float], z_edges: list[float] | None = None) -> tuple[int, int, int | None]:
     """Return the shape of a grid defined by the given edges."""
-    x_centres = bin_centres(x_edges)
-    y_centres = bin_centres(y_edges)
-    z_centres = None
-    if z_edges is not None:
-        z_centres = bin_centres(z_edges)
-    return len(x_centres), len(y_centres), len(z_centres) if z_centres is not None else None
+    nx = len(x_edges) - 1
+    ny = len(y_edges) - 1
+    nz = len(z_edges) - 1 if z_edges is not None else None
+    return nx, ny, nz
 
 
 def grid_shape_from_centres(
@@ -80,12 +78,10 @@ def grid_shape_from_centres(
 
 def grid_size(x_edges: list[float], y_edges: list[float], z_edges: list[float] | None = None) -> int:
     """Return the total number of points in a grid defined by the given edges."""
-    x_centres = bin_centres(x_edges)
-    y_centres = bin_centres(y_edges)
-    z_centres = None
-    if z_edges is not None:
-        z_centres = bin_centres(z_edges)
-    return len(x_centres) * len(y_centres) * (len(z_centres) if z_centres is not None else 1)
+    nx = len(x_edges) - 1
+    ny = len(y_edges) - 1
+    nz = len(z_edges) - 1 if z_edges is not None else 1
+    return nx * ny * nz
 
 
 def cylindrical_grid_coordinates(
@@ -106,10 +102,7 @@ def cylindrical_grid_shape(
     z_edges: list[float],
 ) -> tuple[int, int, int]:
     """Return the shape of a cylindrical grid defined by the given edges."""
-    r_centres = bin_centres(r_edges)
-    phi_centres = bin_centres(phi_edges)
-    z_centres = bin_centres(z_edges)
-    return len(r_centres), len(phi_centres), len(z_centres)
+    return len(r_edges) - 1, len(phi_edges) - 1, len(z_edges) - 1
 
 
 def cylindrical_grid_size(
@@ -118,10 +111,7 @@ def cylindrical_grid_size(
     z_edges: list[float],
 ) -> int:
     """Return the total number of points in a cylindrical grid defined by the given edges."""
-    r_centres = bin_centres(r_edges)
-    phi_centres = bin_centres(phi_edges)
-    z_centres = bin_centres(z_edges)
-    return len(r_centres) * len(phi_centres) * len(z_centres)
+    return (len(r_edges) - 1) * (len(phi_edges) - 1) * (len(z_edges) - 1)
 
 
 def cylindrical_to_cartesian(
@@ -141,6 +131,6 @@ def cartesian_to_cylindrical(
     z: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Convert Cartesian coordinates to cylindrical coordinates."""
-    r = np.sqrt(x**2 + y**2)
+    r = np.hypot(x, y)
     phi = np.arctan2(y, x)
     return r, phi, z
