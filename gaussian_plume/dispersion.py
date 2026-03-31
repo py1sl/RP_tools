@@ -18,7 +18,11 @@ Reference:
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from typing import NamedTuple, Union
+
+import numpy as np
+
+ArrayOrFloat = Union[float, np.ndarray]
 
 # ---------------------------------------------------------------------------
 # Stability category definitions
@@ -78,40 +82,42 @@ _COEFFS: dict[str, _DispersionCoeffs] = {
 # ---------------------------------------------------------------------------
 
 
-def sigma_y(x: float, category: str) -> float:
+def sigma_y(x: ArrayOrFloat, category: str) -> ArrayOrFloat:
     """Return the crosswind (horizontal) dispersion coefficient σy in metres.
 
     Uses the Clarke (1979) parametrisation: ``σy = a·x·(1 + b·x)^c``.
 
     Args:
-        x: Downwind distance from the source (m).  Must be positive.
+        x: Downwind distance from the source (m).  Must be positive.  May be a
+            scalar or a NumPy array; the returned value has the same type/shape.
         category: Pasquill-Gifford stability category, one of ``'A'``–``'F'``.
 
     Returns:
-        σy in metres.
+        σy in metres (scalar or array matching *x*).
 
     Raises:
-        ValueError: If *x* ≤ 0 or *category* is not recognised.
+        ValueError: If any value of *x* ≤ 0 or *category* is not recognised.
     """
     _validate(x, category)
     p = _COEFFS[category]
     return p.a_y * x * (1.0 + p.b_y * x) ** p.c_y
 
 
-def sigma_z(x: float, category: str) -> float:
+def sigma_z(x: ArrayOrFloat, category: str) -> ArrayOrFloat:
     """Return the vertical dispersion coefficient σz in metres.
 
     Uses the Clarke (1979) parametrisation: ``σz = a·x·(1 + b·x)^c``.
 
     Args:
-        x: Downwind distance from the source (m).  Must be positive.
+        x: Downwind distance from the source (m).  Must be positive.  May be a
+            scalar or a NumPy array; the returned value has the same type/shape.
         category: Pasquill-Gifford stability category, one of ``'A'``–``'F'``.
 
     Returns:
-        σz in metres.
+        σz in metres (scalar or array matching *x*).
 
     Raises:
-        ValueError: If *x* ≤ 0 or *category* is not recognised.
+        ValueError: If any value of *x* ≤ 0 or *category* is not recognised.
     """
     _validate(x, category)
     p = _COEFFS[category]
@@ -123,10 +129,21 @@ def sigma_z(x: float, category: str) -> float:
 # ---------------------------------------------------------------------------
 
 
-def _validate(x: float, category: str) -> None:
-    """Raise ValueError if *x* or *category* are invalid."""
-    if x <= 0:
-        raise ValueError(f"Downwind distance x must be positive, got {x}")
+def _validate(x: ArrayOrFloat, category: str) -> None:
+    """Raise ValueError if *x* or *category* are invalid.
+
+    Accepts both scalars and NumPy arrays for *x*.
+    """
+    x_arr = np.asarray(x)
+    if x_arr.ndim == 0:
+        if float(x_arr) <= 0:
+            raise ValueError(f"Downwind distance x must be positive, got {float(x_arr)}")
+    elif np.any(x_arr <= 0):
+        count = int(np.sum(x_arr <= 0))
+        raise ValueError(
+            f"All downwind distances x must be positive; "
+            f"found {count} value(s) ≤ 0."
+        )
     if category not in _COEFFS:
         raise ValueError(
             f"Unknown stability category {category!r}. "

@@ -148,6 +148,12 @@ class GaussianPlume:
         self.release_height: float = release_height
         self.half_lives: dict[str, float] | None = dict(half_lives) if half_lives is not None else None
 
+        # Precompute decay constants to avoid repeated log(2)/T½ divisions.
+        self._decay_constants: dict[str, float] | None = (
+            {name: math.log(2) / hl for name, hl in half_lives.items()}
+            if half_lives is not None else None
+        )
+
     # ------------------------------------------------------------------
     # Concentration calculations
     # ------------------------------------------------------------------
@@ -286,29 +292,44 @@ class GaussianPlume:
             name: np.full((nx, ny, nz), np.nan) for name in self.release
         }
 
-        for ix, x in enumerate(x_centres):
-            if x <= 0:
-                continue
-            sy = sigma_y(x, self.stability_category)
-            sz = sigma_z(x, self.stability_category)
+        # Vectorise over all three axes simultaneously.
+        valid = x_centres > 0
+        x_valid = x_centres[valid]  # shape (n_valid,)
+
+        if x_valid.size > 0:
+            sy_arr = sigma_y(x_valid, self.stability_category)  # (n_valid,)
+            sz_arr = sigma_z(x_valid, self.stability_category)  # (n_valid,)
             H = self.release_height
             u = self.wind_speed
-            two_sy_sq = 2.0 * sy ** 2
-            two_sz_sq = 2.0 * sz ** 2
-            # Vectorise over y and z
-            y_arr = np.asarray(y_centres)  # shape (ny,)
-            z_arr = np.asarray(z_centres)  # shape (nz,)
-            crosswind = np.exp(-np.square(y_arr) / two_sy_sq)              # (ny,)
+            y_arr = np.asarray(y_centres)  # (ny,)
+            z_arr = np.asarray(z_centres)  # (nz,)
+
+            # crosswind: (n_valid, ny)
+            crosswind = np.exp(
+                -y_arr[np.newaxis, :] ** 2
+                / (2.0 * sy_arr[:, np.newaxis] ** 2)
+            )
+            # vertical: (n_valid, nz)
+            two_sz_sq = 2.0 * sz_arr[:, np.newaxis] ** 2
             vertical = (
-                np.exp(-np.square(z_arr - H) / two_sz_sq)
-                + np.exp(-np.square(z_arr + H) / two_sz_sq)
-            )                                                               # (nz,)
+                np.exp(-(z_arr[np.newaxis, :] - H) ** 2 / two_sz_sq)
+                + np.exp(-(z_arr[np.newaxis, :] + H) ** 2 / two_sz_sq)
+            )
+            # dispersion factor: (n_valid, ny, nz)
             factor = (
-                crosswind[:, np.newaxis] * vertical[np.newaxis, :]
-                / (2.0 * math.pi * u * sy * sz)
-            )                                                               # (ny, nz)
-            for name, Q in self._decayed_release(x).items():
-                result[name][ix] = Q * factor
+                crosswind[:, :, np.newaxis] * vertical[:, np.newaxis, :]
+                / (2.0 * math.pi * u
+                   * sy_arr[:, np.newaxis, np.newaxis]
+                   * sz_arr[:, np.newaxis, np.newaxis])
+            )
+
+            for name, Q in self.release.items():
+                if self._decay_constants is not None and name in self._decay_constants:
+                    lam = self._decay_constants[name]
+                    Q_eff = Q * np.exp(-lam * x_valid / u)  # (n_valid,)
+                    result[name][valid] = Q_eff[:, np.newaxis, np.newaxis] * factor
+                else:
+                    result[name][valid] = Q * factor
 
         if squeeze_z:
             return {name: arr[:, :, 0] for name, arr in result.items()}
@@ -414,12 +435,25 @@ class GaussianPlume:
 
         nuclide = self._resolve_nuclide(nuclide)
         x_centres = gaussian_plume.grid.bin_centres(list(x_edges))
-        concentrations = []
-        for x in x_centres:
-            if x > 0:
-                concentrations.append(self.centreline_concentration(x)[nuclide])
+        concentrations = np.full(len(x_centres), np.nan)
+
+        valid_mask = x_centres > 0
+        if np.any(valid_mask):
+            x_valid = x_centres[valid_mask]
+            sy = sigma_y(x_valid, self.stability_category)
+            sz = sigma_z(x_valid, self.stability_category)
+            H = self.release_height
+            u = self.wind_speed
+            # At centreline (y=0, z=0): crosswind=1, vertical=2·exp(−H²/(2σz²))
+            vertical = 2.0 * np.exp(-(H ** 2) / (2.0 * sz ** 2))
+            base_factor = vertical / (2.0 * math.pi * u * sy * sz)
+            Q = self.release[nuclide]
+            if self._decay_constants is not None and nuclide in self._decay_constants:
+                lam = self._decay_constants[nuclide]
+                Q_eff = Q * np.exp(-lam * x_valid / u)
             else:
-                concentrations.append(float("nan"))
+                Q_eff = Q
+            concentrations[valid_mask] = Q_eff * base_factor
 
         if ax is None:
             _, ax = plt.subplots()
@@ -455,17 +489,14 @@ class GaussianPlume:
             Dictionary mapping each nuclide name to its effective release rate
             in Bq/s after decay correction.
         """
-        if self.half_lives is None:
+        if self._decay_constants is None:
             return self.release
         t = x / self.wind_speed
-        result: dict[str, float] = {}
-        for name, Q in self.release.items():
-            if name in self.half_lives:
-                lam = math.log(2) / self.half_lives[name]
-                result[name] = Q * math.exp(-lam * t)
-            else:
-                result[name] = Q
-        return result
+        return {
+            name: Q * math.exp(-self._decay_constants[name] * t)
+            if name in self._decay_constants else Q
+            for name, Q in self.release.items()
+        }
 
     def _resolve_nuclide(self, nuclide: str | None) -> str:
         """Return the nuclide name to use, inferring it when only one exists.
