@@ -23,6 +23,14 @@ from utilities.radioactive_decay import (
     decays_in_period,
     time_to_activity,
 )
+from utilities.unit_conversion import (
+    SI_PREFIX_FACTORS,
+    convert_absorbed_dose,
+    convert_activity,
+    convert_dose_equivalent,
+    convert_radiation_unit,
+    prefix_factor,
+)
 
 __all__ = [
     "Nuclide",
@@ -40,4 +48,10 @@ __all__ = [
     "decay_constant",
     "decays_in_period",
     "time_to_activity",
+    "SI_PREFIX_FACTORS",
+    "convert_absorbed_dose",
+    "convert_activity",
+    "convert_dose_equivalent",
+    "convert_radiation_unit",
+    "prefix_factor",
 ]
