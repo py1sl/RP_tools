@@ -22,6 +22,7 @@ Typical usage::
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -154,3 +155,46 @@ def load_nuclides(
         result[name] = Nuclide(entry)
 
     return result
+
+
+def normalize_nuclide_name(name: str) -> str:
+    """Normalize common nuclide string formats to canonical ``SymbolA`` form.
+
+    Examples:
+        ``"U-235"``, ``"U235"``, and ``"235U"`` all normalize to ``"U235"``.
+    """
+    raw = name.strip()
+    if not raw:
+        raise ValueError("Nuclide name cannot be empty.")
+
+    patterns = (
+        r"^([A-Za-z]{1,2})[\s\-_]*([0-9]{1,3})$",
+        r"^([0-9]{1,3})[\s\-_]*([A-Za-z]{1,2})$",
+    )
+
+    symbol: str | None = None
+    mass_str: str | None = None
+
+    for pattern in patterns:
+        match = re.match(pattern, raw)
+        if match is None:
+            continue
+        left, right = match.groups()
+        if left[0].isdigit():
+            mass_str, symbol = left, right
+        else:
+            symbol, mass_str = left, right
+        break
+
+    if symbol is None or mass_str is None:
+        raise ValueError(
+            f"Invalid nuclide name format {name!r}. "
+            "Expected forms like 'U-235', 'U235', or '235U'."
+        )
+
+    mass_number = int(mass_str)
+    if mass_number <= 0:
+        raise ValueError(f"Mass number must be positive, got {mass_number}.")
+
+    normalized_symbol = symbol[0].upper() + symbol[1:].lower()
+    return f"{normalized_symbol}{mass_number}"
