@@ -66,7 +66,6 @@ _NAMED_PARENT_MISSING = _make_nuclide(
 )
 
 
-
 # ---------------------------------------------------------------------------
 # Shared test constants
 # ---------------------------------------------------------------------------
@@ -426,12 +425,11 @@ class TestDecayChain:
     def test_max_steps_raises(self):
         """A cycle-free but very long chain should raise if max_steps is hit."""
         # Build a 5-nuclide chain but cap max_steps at 2.
-        n1 = _make_nuclide("N1", Z=84, A=212, stable=False,
-                            modes=[{"mode": "alpha", "branching_fraction": 1.0}])
-        n2 = _make_nuclide("N2", Z=82, A=208, stable=False,
-                            modes=[{"mode": "beta-", "branching_fraction": 1.0}])
-        n3 = _make_nuclide("N3", Z=83, A=208, stable=False,
-                            modes=[{"mode": "beta-", "branching_fraction": 1.0}])
+        alpha_mode = [{"mode": "alpha", "branching_fraction": 1.0}]
+        beta_mode = [{"mode": "beta-", "branching_fraction": 1.0}]
+        n1 = _make_nuclide("N1", Z=84, A=212, stable=False, modes=alpha_mode)
+        n2 = _make_nuclide("N2", Z=82, A=208, stable=False, modes=beta_mode)
+        n3 = _make_nuclide("N3", Z=83, A=208, stable=False, modes=beta_mode)
         n4 = _make_nuclide("N4", Z=84, A=208, stable=True)
         db = {"N1": n1, "N2": n2, "N3": n3, "N4": n4}
         with pytest.raises(ValueError, match="steps"):
