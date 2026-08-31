@@ -104,6 +104,21 @@ class Nuclide:
         """Neutron number (A − Z)."""
         return self.A - self.Z
 
+    @property
+    def element_name(self) -> str:
+        """Full element name, e.g. ``"Cobalt"`` for Co-60.
+
+        Derived from :attr:`long_name` by stripping the trailing ``"-A"`` mass
+        suffix.  For nuclides whose :attr:`long_name` contains no hyphen (e.g.
+        ``"Tritium"``), the full :attr:`long_name` is returned unchanged.
+        """
+        return self.long_name.rsplit("-", 1)[0]
+
+    @property
+    def zaid(self) -> int:
+        """ZAID identifier (Z * 1000 + A), e.g. ``27060`` for Co-60."""
+        return self.Z * 1000 + self.A
+
     def __repr__(self) -> str:
         stability = "stable" if self.stable else f"T½={self.half_life_years:.4g} y"
         return f"Nuclide({self.name!r}, Z={self.Z}, A={self.A}, {stability})"
