@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +17,7 @@ from utilities.radioactive_decay import (
     decay_constant,
     decays_in_period,
     electron_capture,
+    plot_decay_chain,
     time_to_activity,
 )
 
@@ -434,3 +436,50 @@ class TestDecayChain:
         db = {"N1": n1, "N2": n2, "N3": n3, "N4": n4}
         with pytest.raises(ValueError, match="steps"):
             decay_chain(n1, db, max_steps=2)
+
+
+# ---------------------------------------------------------------------------
+# plot_decay_chain()
+# ---------------------------------------------------------------------------
+
+
+class TestPlotDecayChain:
+    def test_creates_file(self, tmp_path):
+        out = tmp_path / "chain.png"
+        result = plot_decay_chain([_A, _B, _C], out)
+        assert result == out
+        assert out.exists()
+        assert out.stat().st_size > 0
+
+    def test_single_nuclide_stable(self, tmp_path):
+        out = tmp_path / "stable.png"
+        plot_decay_chain([_C], out)
+        assert out.exists()
+
+    def test_returns_path_object(self, tmp_path):
+        out = tmp_path / "chain.png"
+        result = plot_decay_chain([_A, _B, _C], out)
+        assert isinstance(result, Path)
+
+    def test_string_path_accepted(self, tmp_path):
+        out = str(tmp_path / "chain.png")
+        result = plot_decay_chain([_A, _B, _C], out)
+        assert Path(out).exists()
+        assert result == Path(out)
+
+    def test_pdf_format(self, tmp_path):
+        out = tmp_path / "chain.pdf"
+        plot_decay_chain([_A, _B, _C], out)
+        assert out.exists()
+        assert out.stat().st_size > 0
+
+    def test_empty_chain_raises(self, tmp_path):
+        with pytest.raises(ValueError, match="at least one"):
+            plot_decay_chain([], tmp_path / "out.png")
+
+    def test_bundled_nuclides_chain(self, nuclides, tmp_path):
+        """Smoke-test with real nuclide data from the bundled database."""
+        chain = decay_chain(nuclides["Cs137"], nuclides)
+        out = tmp_path / "cs137_chain.png"
+        plot_decay_chain(chain, out)
+        assert out.exists()
