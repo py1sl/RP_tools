@@ -168,8 +168,8 @@ def normalize_nuclide_name(name: str) -> str:
         raise ValueError("Nuclide name cannot be empty.")
 
     patterns = (
-        r"^([A-Za-z]{1,2})[\s\-_]*([0-9]{1,3})$",
-        r"^([0-9]{1,3})[\s\-_]*([A-Za-z]{1,2})$",
+        r"^([A-Za-z]{1,2})(?:[\s\-_])?([0-9]{1,3})$",
+        r"^([0-9]{1,3})(?:[\s\-_])?([A-Za-z]{1,2})$",
     )
 
     symbol: str | None = None
