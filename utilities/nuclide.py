@@ -8,6 +8,14 @@ This module provides:
 - :class:`Nuclide` – an immutable data class representing a single nuclide.
 - :func:`load_nuclides` – reads ``data/nuclides.json`` and returns a dictionary
   mapping nuclide names to :class:`Nuclide` instances.
+- :func:`normalize_nuclide_name` – converts common nuclide string formats to
+  canonical ``SymbolA`` form.
+- :func:`nuclides_of_element` – returns all loaded nuclides for a given element
+  symbol.
+- :func:`stable_daughters` – walks all decay branches and returns the set of
+  stable end-product nuclides.
+- :func:`is_in_chain` – checks whether a nuclide appears anywhere in a parent's
+  decay chain.
 
 Typical usage::
 
@@ -23,6 +31,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -213,3 +222,222 @@ def normalize_nuclide_name(name: str) -> str:
 
     normalized_symbol = symbol[0].upper() + symbol[1:].lower()
     return f"{normalized_symbol}{mass_number}"
+
+
+# ---------------------------------------------------------------------------
+# Nuclide utility functions
+# ---------------------------------------------------------------------------
+
+
+def _build_za_index(nuclide_db: dict[str, "Nuclide"]) -> dict[tuple[int, int], "Nuclide"]:
+    """Return a ``(Z, A) → Nuclide`` mapping for fast lookup by nuclear numbers."""
+    return {(n.Z, n.A): n for n in nuclide_db.values()}
+
+
+def nuclides_of_element(
+    symbol: str,
+    nuclide_db: dict[str, "Nuclide"],
+) -> list["Nuclide"]:
+    """Return all nuclides in *nuclide_db* whose element symbol matches *symbol*.
+
+    The comparison is case-insensitive; the symbol is normalised to title-case
+    (first letter upper, remainder lower) before matching.
+
+    Args:
+        symbol: Element symbol to search for, e.g. ``"Co"`` or ``"co"``.
+        nuclide_db: Dictionary mapping nuclide names to
+            :class:`Nuclide` instances, as returned by :func:`load_nuclides`.
+
+    Returns:
+        List of :class:`Nuclide` instances whose :attr:`~Nuclide.symbol`
+        matches *symbol*, sorted by ascending mass number *A*.
+
+    Raises:
+        ValueError: If *symbol* is empty.
+
+    Examples::
+
+        nuclides = load_nuclides()
+        cobalt_isotopes = nuclides_of_element("Co", nuclides)
+        # [Nuclide('Co59', ...), Nuclide('Co60', ...), ...]
+    """
+    if not symbol.strip():
+        raise ValueError("Element symbol cannot be empty.")
+
+    normalised = symbol.strip()[0].upper() + symbol.strip()[1:].lower()
+    return sorted(
+        (n for n in nuclide_db.values() if n.symbol == normalised),
+        key=lambda n: n.A,
+    )
+
+
+def stable_daughters(
+    nuclide: "Nuclide",
+    nuclide_db: dict[str, "Nuclide"],
+    max_steps: int = 200,
+) -> set["Nuclide"]:
+    """Return the set of stable nuclides that terminate *nuclide*'s decay chain.
+
+    All decay branches recorded in :attr:`~Nuclide.decay_modes` are followed
+    simultaneously so that every possible stable end-product is captured, even
+    for nuclides with significant branching (e.g. ``beta+`` / ``electron_capture``
+    competition).
+
+    If a daughter referenced in the data is absent from *nuclide_db*, the
+    traversal silently stops at that point (the missing nuclide is assumed to
+    be outside the scope of the loaded database).  Unknown decay-mode strings
+    that have no associated nuclear-change rule are skipped similarly.
+
+    Args:
+        nuclide: Starting :class:`Nuclide`.
+        nuclide_db: Dictionary mapping nuclide names to
+            :class:`Nuclide` instances, as returned by :func:`load_nuclides`.
+        max_steps: Maximum BFS/DFS depth before giving up (guards against
+            malformed data).  Defaults to 200.
+
+    Returns:
+        Set of stable :class:`Nuclide` objects reachable from *nuclide*.
+        Returns a set containing *nuclide* itself when it is already stable.
+
+    Raises:
+        ValueError: If *max_steps* is exceeded.
+
+    Examples::
+
+        nuclides = load_nuclides()
+        ends = stable_daughters(nuclides["U238"], nuclides)
+        # {Nuclide('Pb206', ...)}
+    """
+    # Lazy import to avoid a circular dependency between nuclide ↔ radioactive_decay.
+    from utilities.radioactive_decay import _DECAY_MODE_DELTAS  # noqa: PLC0415
+
+    if nuclide.stable:
+        return {nuclide}
+
+    # Pre-build (Z, A) → Nuclide index.
+    za_index = _build_za_index(nuclide_db)
+
+    stable: set[Nuclide] = set()
+    # BFS queue of (nuclide, depth).
+    queue: deque[tuple[Nuclide, int]] = deque([(nuclide, 0)])
+    visited: set[str] = {nuclide.name}
+
+    while queue:
+        current, depth = queue.popleft()
+
+        if current.stable:
+            stable.add(current)
+            continue
+
+        if depth >= max_steps:
+            raise ValueError(
+                f"stable_daughters: exceeded {max_steps} steps starting from "
+                f"{nuclide.name!r}."
+            )
+
+        for mode_info in current.decay_modes:
+            mode = mode_info["mode"].lower()
+            daughter_name: str | None = mode_info.get("daughter")
+
+            if daughter_name is not None:
+                if daughter_name not in nuclide_db:
+                    continue
+                daughter = nuclide_db[daughter_name]
+            else:
+                if mode not in _DECAY_MODE_DELTAS:
+                    continue
+                dZ, dA = _DECAY_MODE_DELTAS[mode]
+                key = (current.Z + dZ, current.A + dA)
+                if key not in za_index:
+                    continue
+                daughter = za_index[key]
+
+            if daughter.name not in visited:
+                visited.add(daughter.name)
+                queue.append((daughter, depth + 1))
+
+    return stable
+
+
+def is_in_chain(
+    parent: "Nuclide",
+    candidate: "Nuclide",
+    nuclide_db: dict[str, "Nuclide"],
+    max_steps: int = 200,
+) -> bool:
+    """Return ``True`` if *candidate* appears anywhere in *parent*'s decay chain.
+
+    All decay branches are explored (same BFS strategy as
+    :func:`stable_daughters`), so branching chains are handled correctly.
+    *parent* itself is **not** considered to be in its own chain (i.e. the
+    function returns ``False`` when ``parent == candidate``).
+
+    Args:
+        parent: The nuclide whose decay chain is searched.
+        candidate: The nuclide to search for.
+        nuclide_db: Dictionary mapping nuclide names to
+            :class:`Nuclide` instances, as returned by :func:`load_nuclides`.
+        max_steps: Maximum BFS depth (guards against malformed data).
+            Defaults to 200.
+
+    Returns:
+        ``True`` if *candidate* is a daughter (direct or indirect) of *parent*;
+        ``False`` otherwise.
+
+    Raises:
+        ValueError: If *max_steps* is exceeded.
+
+    Examples::
+
+        nuclides = load_nuclides()
+        print(is_in_chain(nuclides["U238"], nuclides["Pb206"], nuclides))  # True
+        print(is_in_chain(nuclides["Co60"], nuclides["Cs137"], nuclides))  # False
+    """
+    # Lazy import to avoid a circular dependency.
+    from utilities.radioactive_decay import _DECAY_MODE_DELTAS  # noqa: PLC0415
+
+    if parent.stable:
+        return False
+
+    za_index = _build_za_index(nuclide_db)
+
+    queue: deque[tuple[Nuclide, int]] = deque([(parent, 0)])
+    visited: set[str] = {parent.name}
+
+    while queue:
+        current, depth = queue.popleft()
+
+        if current.stable:
+            continue
+
+        if depth >= max_steps:
+            raise ValueError(
+                f"is_in_chain: exceeded {max_steps} steps starting from "
+                f"{parent.name!r}."
+            )
+
+        for mode_info in current.decay_modes:
+            mode = mode_info["mode"].lower()
+            daughter_name: str | None = mode_info.get("daughter")
+
+            if daughter_name is not None:
+                if daughter_name not in nuclide_db:
+                    continue
+                daughter = nuclide_db[daughter_name]
+            else:
+                if mode not in _DECAY_MODE_DELTAS:
+                    continue
+                dZ, dA = _DECAY_MODE_DELTAS[mode]
+                key = (current.Z + dZ, current.A + dA)
+                if key not in za_index:
+                    continue
+                daughter = za_index[key]
+
+            if daughter == candidate:
+                return True
+
+            if daughter.name not in visited:
+                visited.add(daughter.name)
+                queue.append((daughter, depth + 1))
+
+    return False
