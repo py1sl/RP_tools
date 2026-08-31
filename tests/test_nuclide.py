@@ -268,6 +268,45 @@ class TestNuclideValidation:
         assert len(s) == 2
 
 
+# ---------------------------------------------------------------------------
+# Nuclide – element_name and zaid properties
+# ---------------------------------------------------------------------------
+
+
+class TestElementNameAndZAID:
+    def test_element_name_co60(self, nuclides):
+        assert nuclides["Co60"].element_name == "Cobalt"
+
+    def test_element_name_cs137(self, nuclides):
+        assert nuclides["Cs137"].element_name == "Caesium"
+
+    def test_element_name_i131(self, nuclides):
+        assert nuclides["I131"].element_name == "Iodine"
+
+    def test_element_name_fe56(self, nuclides):
+        assert nuclides["Fe56"].element_name == "Iron"
+
+    def test_zaid_co60(self, nuclides):
+        # Z=27, A=60 → 27*1000 + 60 = 27060
+        assert nuclides["Co60"].zaid == 27060
+
+    def test_zaid_cs137(self, nuclides):
+        # Z=55, A=137 → 55137
+        assert nuclides["Cs137"].zaid == 55137
+
+    def test_zaid_i131(self, nuclides):
+        # Z=53, A=131 → 53131
+        assert nuclides["I131"].zaid == 53131
+
+    def test_zaid_fe56(self, nuclides):
+        # Z=26, A=56 → 26056
+        assert nuclides["Fe56"].zaid == 26056
+
+    def test_zaid_formula(self, nuclides):
+        for nuc in nuclides.values():
+            assert nuc.zaid == nuc.Z * 1000 + nuc.A
+
+
 class TestNormalizeNuclideName:
     @pytest.mark.parametrize(
         ("input_name", "expected"),
