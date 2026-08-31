@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from utilities.nuclide import Nuclide, load_nuclides
+from utilities.nuclide import Nuclide, load_nuclides, normalize_nuclide_name
 
 
 # ---------------------------------------------------------------------------
@@ -266,3 +266,24 @@ class TestNuclideValidation:
     def test_hashable(self, nuclides):
         s = {nuclides["Co60"], nuclides["Fe56"]}
         assert len(s) == 2
+
+
+class TestNormalizeNuclideName:
+    @pytest.mark.parametrize(
+        ("input_name", "expected"),
+        [
+            ("U-235", "U235"),
+            ("U235", "U235"),
+            ("235U", "U235"),
+            ("  co-60  ", "Co60"),
+            ("137-cs", "Cs137"),
+            ("001H", "H1"),
+        ],
+    )
+    def test_normalizes_supported_formats(self, input_name, expected):
+        assert normalize_nuclide_name(input_name) == expected
+
+    @pytest.mark.parametrize("bad_name", ["", "U", "235", "U-0", "abc", "U--235"])
+    def test_invalid_names_raise(self, bad_name):
+        with pytest.raises(ValueError):
+            normalize_nuclide_name(bad_name)

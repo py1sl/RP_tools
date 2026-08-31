@@ -5,7 +5,7 @@ RP_tools tool packages. Individual tools (e.g. Gaussian plume model, skin dose
 model) each live in their own top-level folder and import from this package.
 """
 
-from utilities.nuclide import Nuclide, load_nuclides
+from utilities.nuclide import Nuclide, load_nuclides, normalize_nuclide_name
 from utilities.icrp_data import ICRPDataLibrary, ICRPTable, load_icrp_data
 from utilities.immersion_dose import (
     ImmersionDoseCalculator,
@@ -35,6 +35,7 @@ from utilities.unit_conversion import (
 __all__ = [
     "Nuclide",
     "load_nuclides",
+    "normalize_nuclide_name",
     "ICRPTable",
     "ICRPDataLibrary",
     "load_icrp_data",
