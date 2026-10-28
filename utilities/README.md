@@ -133,3 +133,17 @@ Place new shared utility modules directly in this directory and export them
 from the package-level `__init__.py`.  Each module should be accompanied by
 tests in `tests/`.  If a function is only used by one specific tool, put it
 in that tool's own folder instead.
+
+### `compartment_model.py`
+
+Biokinetic compartment models: a general linear `CompartmentModel`
+(transfers, excretion, optional radioactive decay, solved exactly), plus
+`effective_half_life`, `single_compartment_retention` and a ready-made
+`iodine_thyroid_model` (blood → thyroid → excreta, 80 d biological half-life).
+
+```python
+from utilities.compartment_model import iodine_thyroid_model
+
+model = iodine_thyroid_model()            # I-131, times in days
+print(model.amounts({"blood": 1.0}, 30))  # fraction in each compartment
+```
