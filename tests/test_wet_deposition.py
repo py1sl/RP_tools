@@ -98,6 +98,21 @@ class TestWetDepositionModelConstruction:
         with pytest.raises(ValueError, match="non-negative"):
             WetDepositionModel(simple_plume, washout_coefficients={"Cs137": -5.0e-4})
 
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"integration_time_s": np.nan},
+            {"integration_time_s": np.inf},
+            {"washout_coefficients": np.nan},
+            {"washout_coefficients": np.inf},
+            {"washout_coefficients": {"Cs137": np.nan}},
+            {"washout_coefficients": {"Cs137": np.inf}},
+        ],
+    )
+    def test_non_finite_values_raise(self, simple_plume, kwargs):
+        with pytest.raises(ValueError):
+            WetDepositionModel(simple_plume, **kwargs)
+
     def test_missing_nuclide_in_dict_raises(self, multi_nuclide_plume):
         # Only supply one of the two nuclides
         with pytest.raises(ValueError, match="missing entries"):

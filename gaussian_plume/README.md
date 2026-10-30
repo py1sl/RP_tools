@@ -183,13 +183,23 @@ chi = plume.centreline_concentration(x=1000.0)
 
 ## Limitations
 
-The current implementation covers the core dispersion and dry deposition
-calculations.  The following features from the full NRPB-R91 methodology are
-**not yet implemented**:
+The implementation provides core dispersion, dry deposition, and wet
+deposition calculations. Deposition currently uses a no-depletion
+approximation; wet deposition estimates ground deposition and does not calculate
+ground-shine dose.
 
-* Wet deposition / ground-shine
+### NRPB-R91 corrections not yet implemented
+
 * Building-wake and urban-roughness corrections
 * Mixing-layer height capping
+* Ground-shine dose calculation
+
+These reference-backed corrections are the first candidates for extending the
+current steady-state model. Other possible, broader extensions include
+time-varying releases and meteorology, finite-duration or puff releases, terrain
+effects, and uncertainty or sensitivity analysis. Each requires explicit
+requirements, model-specific scientific references, and independent validation
+before use in radiological assessment.
 
 ## Optional geographic map overlay
 

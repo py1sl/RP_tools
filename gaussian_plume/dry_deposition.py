@@ -50,6 +50,7 @@ References:
 
 from __future__ import annotations
 
+import math
 from typing import Mapping, Sequence, Union
 
 import numpy as np
@@ -141,7 +142,7 @@ class DryDepositionModel:
             raise TypeError(
                 f"plume must be a GaussianPlume instance, got {type(plume).__name__!r}"
             )
-        if integration_time_s <= 0:
+        if not math.isfinite(float(integration_time_s)) or integration_time_s <= 0:
             raise ValueError(
                 f"integration_time_s must be positive, got {integration_time_s}"
             )
@@ -152,7 +153,7 @@ class DryDepositionModel:
         # Resolve deposition velocities to a per-nuclide dict
         if isinstance(deposition_velocities, (int, float)):
             vd = float(deposition_velocities)
-            if vd < 0:
+            if not math.isfinite(vd) or vd < 0:
                 raise ValueError(
                     f"deposition_velocity must be non-negative, got {vd}"
                 )
@@ -169,7 +170,8 @@ class DryDepositionModel:
                     f"{', '.join(sorted(missing))}"
                 )
             for name, vd in vd_map.items():
-                if vd < 0:
+                vd = float(vd)
+                if not math.isfinite(vd) or vd < 0:
                     raise ValueError(
                         f"deposition_velocity for '{name}' must be non-negative, got {vd}"
                     )

@@ -98,6 +98,21 @@ class TestDryDepositionModelConstruction:
         with pytest.raises(ValueError, match="non-negative"):
             DryDepositionModel(simple_plume, deposition_velocities={"Cs137": -0.001})
 
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"integration_time_s": np.nan},
+            {"integration_time_s": np.inf},
+            {"deposition_velocities": np.nan},
+            {"deposition_velocities": np.inf},
+            {"deposition_velocities": {"Cs137": np.nan}},
+            {"deposition_velocities": {"Cs137": np.inf}},
+        ],
+    )
+    def test_non_finite_values_raise(self, simple_plume, kwargs):
+        with pytest.raises(ValueError):
+            DryDepositionModel(simple_plume, **kwargs)
+
     def test_missing_nuclide_in_dict_raises(self, multi_nuclide_plume):
         # Only supply one of the two nuclides
         with pytest.raises(ValueError, match="missing entries"):
