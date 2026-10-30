@@ -190,3 +190,50 @@ calculations.  The following features from the full NRPB-R91 methodology are
 * Wet deposition / ground-shine
 * Building-wake and urban-roughness corrections
 * Mixing-layer height capping
+
+## Optional geographic map overlay
+
+The optional `gaussian_plume.basemap` module overlays a ground-level plume on
+a georeferenced raster without changing the model's local-metre calculations.
+It includes a generic XYZ tile provider and a cache-first wrapper. Configure a
+tile URL and attribution for a provider whose access and caching terms allow
+your use; satellite providers may require an API key in the URL template.
+
+```python
+from gaussian_plume.basemap import CachedBasemap, XYZTileProvider, plot_plume_on_map
+
+tiles = XYZTileProvider(
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution="© OpenStreetMap contributors",
+    source="OpenStreetMap",
+    user_agent="YourApplication/1.0 (contact@example.org)",
+)
+basemap = CachedBasemap(tiles, cache_dir="~/.cache/rp-tools/maps")
+
+ax = plot_plume_on_map(
+    plume,
+    source_longitude=-1.5,
+    source_latitude=52.0,
+    downwind_extent_m=5000,
+    crosswind_extent_m=1500,
+    wind_direction_deg=225,  # direction the wind blows toward; clockwise from north
+    basemap=basemap,
+    resolution_m=100,
+)
+```
+
+`CachedBasemap` checks for an image covering the requested bounds at adequate
+pixel density before downloading; set `offline=True` to raise a clear
+`FileNotFoundError` on a cache miss. Cache metadata records provider identity,
+geographic bounds, dimensions, attribution, and imagery date when supplied by
+the provider. `BasemapImage` can also be passed directly for caller-managed
+images. XYZ tiles use Web Mercator and are limited to approximately ±85.05°
+latitude; requests crossing the antimeridian are not supported.
+
+OpenStreetMap tiles provide a general-purpose map, not satellite imagery.
+Other XYZ-compatible sources can provide aerial or satellite imagery, but
+check each service's attribution, API, display, and caching requirements before
+use; the cache does not override provider terms. Imagery may be dated or
+incomplete. The overlay uses a local tangent-plane approximation and the
+underlying plume model does not account for terrain or buildings, so this is a
+visualisation aid rather than a site-level prediction.
