@@ -36,7 +36,8 @@ class BasemapImage:
     def __post_init__(self) -> None:
         self.pixels = np.asarray(self.pixels)
         validate_bounds(self.bounds)
-        if self.pixels.ndim not in (2, 3) or not all(self.pixels.shape[:2]):
+        if (self.pixels.ndim not in (2, 3) or not all(self.pixels.shape[:2])
+                or (self.pixels.ndim == 3 and self.pixels.shape[2] not in (3, 4))):
             raise ValueError("pixels must be a non-empty 2D or 3D image array.")
         if not self.attribution or not self.source:
             raise ValueError("Basemap attribution and source must be provided.")
@@ -94,7 +95,8 @@ class XYZTileProvider:
         self.source = source
         self.user_agent = user_agent
         self.timeout = timeout
-        self.cache_id = hashlib.sha256(url_template.encode()).hexdigest()
+        identity = json.dumps([url_template, attribution, source], separators=(",", ":"))
+        self.cache_id = hashlib.sha256(identity.encode()).hexdigest()
 
     def fetch_image(
         self, bounds: GeoBounds, width: int, height: int
@@ -200,7 +202,7 @@ class CachedBasemap:
         offline: bool = False,
     ) -> None:
         self.provider = provider
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir = Path(cache_dir).expanduser()
         self.offline = offline
 
     def get_image(

@@ -30,6 +30,13 @@ from gaussian_plume.dispersion import STABILITY_CATEGORIES, sigma_y, sigma_z
 from gaussian_plume.plume import GaussianPlume
 from gaussian_plume.dry_deposition import DEFAULT_DEPOSITION_VELOCITY_M_S, DryDepositionModel
 from gaussian_plume.wet_deposition import DEFAULT_WASHOUT_COEFFICIENT_M_S, WetDepositionModel
+from gaussian_plume.basemap import (
+    BasemapImage,
+    BasemapProvider,
+    CachedBasemap,
+    XYZTileProvider,
+    plot_plume_on_map,
+)
 
 __all__ = [
     "GaussianPlume",
@@ -40,4 +47,9 @@ __all__ = [
     "DEFAULT_DEPOSITION_VELOCITY_M_S",
     "WetDepositionModel",
     "DEFAULT_WASHOUT_COEFFICIENT_M_S",
+    "BasemapImage",
+    "BasemapProvider",
+    "CachedBasemap",
+    "XYZTileProvider",
+    "plot_plume_on_map",
 ]
