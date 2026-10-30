@@ -50,6 +50,7 @@ References:
 
 from __future__ import annotations
 
+import math
 from typing import Mapping, Sequence, Union
 
 import numpy as np
@@ -142,7 +143,7 @@ class WetDepositionModel:
             raise TypeError(
                 f"plume must be a GaussianPlume instance, got {type(plume).__name__!r}"
             )
-        if integration_time_s <= 0:
+        if not math.isfinite(float(integration_time_s)) or integration_time_s <= 0:
             raise ValueError(
                 f"integration_time_s must be positive, got {integration_time_s}"
             )
@@ -153,7 +154,7 @@ class WetDepositionModel:
         # Resolve washout coefficients to a per-nuclide dict
         if isinstance(washout_coefficients, (int, float)):
             lam = float(washout_coefficients)
-            if lam < 0:
+            if not math.isfinite(lam) or lam < 0:
                 raise ValueError(
                     f"washout_coefficient must be non-negative, got {lam}"
                 )
@@ -170,7 +171,8 @@ class WetDepositionModel:
                     f"{', '.join(sorted(missing))}"
                 )
             for name, lam in lam_map.items():
-                if lam < 0:
+                lam = float(lam)
+                if not math.isfinite(lam) or lam < 0:
                     raise ValueError(
                         f"washout_coefficient for '{name}' must be non-negative, got {lam}"
                     )

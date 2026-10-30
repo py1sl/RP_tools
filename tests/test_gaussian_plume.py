@@ -103,6 +103,11 @@ class TestSigmaY:
         with pytest.raises(ValueError, match="positive"):
             sigma_y(-100.0, "D")
 
+    @pytest.mark.parametrize("x", [np.nan, np.inf, -np.inf])
+    def test_non_finite_x_raises(self, x):
+        with pytest.raises(ValueError, match="finite"):
+            sigma_y(x, "D")
+
     def test_invalid_category_raises(self):
         with pytest.raises(ValueError, match="Unknown stability category"):
             sigma_y(X_1000, "G")
@@ -160,6 +165,10 @@ class TestSigmaZ:
     def test_negative_x_raises(self):
         with pytest.raises(ValueError, match="positive"):
             sigma_z(-1.0, "D")
+
+    def test_non_finite_x_raises(self):
+        with pytest.raises(ValueError, match="finite"):
+            sigma_z(np.nan, "D")
 
     def test_invalid_category_raises(self):
         with pytest.raises(ValueError, match="Unknown stability category"):
@@ -239,6 +248,43 @@ class TestGaussianPlumeConstruction:
     def test_negative_release_rate_raises(self):
         with pytest.raises(ValueError, match="non-negative"):
             GaussianPlume({"Cs137": -1.0}, wind_speed=2.0, stability_category="D", release_height=0.0)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"wind_speed": np.nan},
+            {"wind_speed": np.inf},
+            {"release_height": np.nan},
+            {"release_height": np.inf},
+            {"release": {"Cs137": np.nan}},
+            {"release": {"Cs137": np.inf}},
+            {"half_lives": {"Cs137": np.nan}},
+            {"half_lives": {"Cs137": np.inf}},
+        ],
+    )
+    def test_non_finite_configuration_values_raise(self, kwargs):
+        args = {
+            "release": RELEASE_1BQ,
+            "wind_speed": 2.0,
+            "stability_category": "D",
+            "release_height": 0.0,
+        }
+        args.update(kwargs)
+        with pytest.raises(ValueError):
+            GaussianPlume(**args)
+
+    def test_release_and_half_lives_are_read_only(self):
+        plume = GaussianPlume(
+            RELEASE_1BQ,
+            wind_speed=2.0,
+            stability_category="D",
+            release_height=0.0,
+            half_lives={"Cs137": 1000.0},
+        )
+        with pytest.raises(TypeError):
+            plume.release["Cs137"] = 2.0
+        with pytest.raises(TypeError):
+            plume.half_lives["Cs137"] = 2000.0
 
     def test_repr_contains_key_info(self):
         plume = GaussianPlume(RELEASE_1BQ, wind_speed=2.0, stability_category="D", release_height=50.0)
@@ -363,6 +409,14 @@ class TestAirConcentration:
         with pytest.raises(ValueError, match="non-negative"):
             plume.air_concentration(X_1000, 0.0, -1.0)
 
+    @pytest.mark.parametrize(
+        "coordinates",
+        [(X_1000, np.inf, 0.0), (X_1000, 0.0, np.nan), (np.nan, 0.0, 0.0)],
+    )
+    def test_non_finite_coordinates_raise(self, coordinates):
+        with pytest.raises(ValueError):
+            self._plume().air_concentration(*coordinates)
+
     def test_all_stability_categories_run_without_error(self):
         for cat in STABILITY_CATEGORIES:
             plume = GaussianPlume(RELEASE_1BQ, wind_speed=2.0, stability_category=cat, release_height=10.0)
@@ -475,6 +529,18 @@ class TestConcentrationOnGrid:
         with pytest.raises(ValueError, match="non-negative"):
             plume.concentration_on_grid([0.0, 1000.0], [-100.0, 100.0], [-10.0, 0.0, 100.0])
 
+    @pytest.mark.parametrize(
+        "edges",
+        [
+            [0.0, 1.0, 1.0],
+            [0.0, 2.0, 1.0],
+            [0.0, np.inf, 2.0],
+        ],
+    )
+    def test_invalid_x_edges_raise(self, edges):
+        with pytest.raises(ValueError, match="x_edges"):
+            self._plume().concentration_on_grid(edges, [-1.0, 1.0])
+
     def test_multi_nuclide_grid(self):
         plume = GaussianPlume({"Co60": 2.0, "Cs137": 4.0}, wind_speed=2.0,
                               stability_category="D", release_height=0.0)
@@ -501,6 +567,30 @@ class TestConcentrationOnGrid:
                 for iz, z in enumerate(z_centres):
                     expected = plume.air_concentration(x, y, z)["Cs137"]
                     assert grid["Cs137"][ix, iy, iz] == pytest.approx(expected, rel=1e-9)
+
+    def test_chunked_grid_matches_scalar_calculations(self, monkeypatch):
+        import gaussian_plume.plume as plume_module
+
+        monkeypatch.setattr(plume_module, "_MAX_GRID_CHUNK_CELLS", 4)
+        plume = GaussianPlume(
+            {"Cs137": 1.0, "Co60": 2.0},
+            wind_speed=2.0,
+            stability_category="D",
+            release_height=20.0,
+            half_lives={"Cs137": 1000.0},
+        )
+        x_edges = [100.0, 200.0, 300.0, 400.0]
+        y_edges = [-20.0, -10.0, 0.0, 10.0, 20.0]
+        z_edges = [0.0, 10.0, 20.0]
+        grid = plume.concentration_on_grid(x_edges, y_edges, z_edges)
+        for ix, x in enumerate([150.0, 250.0, 350.0]):
+            for iy, y in enumerate([-15.0, -5.0, 5.0, 15.0]):
+                for iz, z in enumerate([5.0, 15.0]):
+                    expected = plume.air_concentration(x, y, z)
+                    for name in plume.release:
+                        assert grid[name][ix, iy, iz] == pytest.approx(
+                            expected[name], rel=1e-9
+                        )
 
 
 # ---------------------------------------------------------------------------

@@ -134,12 +134,15 @@ def _validate(x: ArrayOrFloat, category: str) -> None:
 
     Accepts both scalars and NumPy arrays for *x*.
     """
-    x_arr = np.asarray(x)
+    x_arr = np.asarray(x, dtype=float)
+    if not np.all(np.isfinite(x_arr)):
+        raise ValueError("All downwind distances x must be finite.")
+    invalid = x_arr <= 0
     if x_arr.ndim == 0:
-        if float(x_arr) <= 0:
+        if bool(invalid):
             raise ValueError(f"Downwind distance x must be positive, got {float(x_arr)}")
-    elif np.any(x_arr <= 0):
-        count = int(np.sum(x_arr <= 0))
+    elif np.any(invalid):
+        count = int(np.sum(invalid))
         raise ValueError(
             f"All downwind distances x must be positive; "
             f"found {count} value(s) ≤ 0."

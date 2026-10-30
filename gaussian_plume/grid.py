@@ -3,6 +3,20 @@
 import numpy as np
 
 
+def _validate_edges(edges, name: str) -> np.ndarray:
+    """Return finite, strictly increasing one-dimensional bin edges."""
+    arr = np.asarray(edges, dtype=float)
+    if arr.ndim != 1 or arr.size < 2:
+        raise ValueError(
+            f"{name} must be a one-dimensional sequence with at least two values."
+        )
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"All {name} values must be finite.")
+    if np.any(np.diff(arr) <= 0):
+        raise ValueError(f"{name} values must be strictly increasing.")
+    return arr
+
+
 def bin_centres(edges: list[float]) -> np.ndarray:
     """Return the midpoints between consecutive bin edges."""
     arr = np.asarray(edges, dtype=float)
